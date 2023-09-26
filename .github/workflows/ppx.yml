@@ -17,7 +17,7 @@ jobs:
     container:
       image: alexfedoseev/alpine-node-yarn-esy:0.0.9
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/setup-node@v3
         with:
           node-version: 14.x
@@ -29,7 +29,7 @@ jobs:
         id: print_esy_cache
         run: node $GITHUB_WORKSPACE/.github/workflows/print_esy_cache.js
       - name: Try to restore dependencies cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         id: deps-cache
         with:
           path: ${{ steps.print_esy_cache.outputs.esy_cache }}
@@ -58,7 +58,7 @@ jobs:
     name: PPX
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/setup-node@v3
         with:
           node-version: 16.x
@@ -75,7 +75,7 @@ jobs:
         run: |
           strip _build/default/bin/RescriptEmbedLang.exe
       - name: Upload PPX artifact ${{ matrix.platform }}
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: ppx-${{ matrix.platform }}
           path: _build/default/bin/RescriptEmbedLang.exe
