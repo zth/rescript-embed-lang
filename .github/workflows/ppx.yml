@@ -1,0 +1,82 @@
+name: PPX
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+jobs:
+  ppx_linux:
+    strategy:
+      matrix:
+        platform: [ubuntu-latest]
+
+    name: PPX
+    runs-on: ${{ matrix.platform }}
+    container:
+      image: alexfedoseev/alpine-node-yarn-esy:0.0.9
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 14.x
+        env:
+          CI: true
+      - name: Esy install
+        run: esy install
+      - name: Print esy cache
+        id: print_esy_cache
+        run: node $GITHUB_WORKSPACE/.github/workflows/print_esy_cache.js
+      - name: Try to restore dependencies cache
+        uses: actions/cache@v2
+        id: deps-cache
+        with:
+          path: ${{ steps.print_esy_cache.outputs.esy_cache }}
+          key: ${{ matrix.platform }}---v1${{ hashFiles('**/index.json') }}
+          restore-keys: |
+            ${{ matrix.platform }}---v1
+      - name: Build PPX
+        run: esy linux-release-static
+      - name: Copy built PPX file
+        run: |
+          cp _build/default/bin/RescriptEmbedLang.exe ppx-linux
+      - name: Strip binary
+        run: |
+          strip ppx-linux
+      - name: Upload PPX artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: ppx-${{ matrix.platform }}
+          path: ppx-*
+          if-no-files-found: error
+  ppx:
+    strategy:
+      matrix:
+        platform: [macos-latest, windows-latest]
+
+    name: PPX
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16.x
+        env:
+          CI: true
+      - name: Install esy
+        run: npm install -g esy
+      - name: Build PPX
+        uses: esy/github-action@master
+        with:
+          cache-key: ${{ matrix.platform }}-${{ hashFiles('esy.lock/index.json') }}-v3
+      - name: Strip PPX binary
+        if: runner.os != 'Windows'
+        run: |
+          strip _build/default/bin/RescriptEmbedLang.exe
+      - name: Upload PPX artifact ${{ matrix.platform }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: ppx-${{ matrix.platform }}
+          path: _build/default/bin/RescriptEmbedLang.exe
+          if-no-files-found: error

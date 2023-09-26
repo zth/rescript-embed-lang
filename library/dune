@@ -1,0 +1,6 @@
+(library
+ (name RescriptEmbedLangLibrary)
+ (public_name rescript-embed-lang-ppx)
+ (libraries ppxlib str)
+ (kind ppx_rewriter)
+ (flags :standard -w -9-27))
