@@ -1,5 +1,5 @@
 {
-  "name": "rescript-embed-lang-ppx",
+  "name": "rescript-embed-lang",
   "version": "0.1.0",
   "description": "Starter Reason Esy Pesy Project",
   "esy": {

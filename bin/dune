@@ -1,4 +1,4 @@
 (executable
  (name RescriptEmbedLang)
  (public_name RescriptEmbedLang.exe)
- (libraries rescript-embed-lang-ppx ppxlib))
+ (libraries rescript-embed-lang ppxlib))
