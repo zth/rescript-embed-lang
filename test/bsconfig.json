@@ -1,0 +1,17 @@
+{
+  "name": "test",
+  "uncurried": true,
+  "sources": [
+    {
+      "dir": "src"
+    }
+  ],
+  "package-specs": {
+    "module": "es6",
+    "in-source": true
+  },
+  "suffix": ".mjs",
+  "bs-dependencies": ["@rescript/core"],
+  "bsc-flags": ["-open RescriptCore"],
+  "ppx-flags": ["../_build/default/bin/RescriptEmbedLang.exe"]
+}

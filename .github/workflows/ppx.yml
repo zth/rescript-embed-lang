@@ -74,6 +74,12 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           strip _build/default/bin/RescriptEmbedLang.exe
+      - name: Install sample project
+        working-directory: test
+        run: npm ci
+      - name: Build sample project
+        working-directory: test
+        run: npx rescript
       - name: Upload PPX artifact ${{ matrix.platform }}
         uses: actions/upload-artifact@v3
         with:

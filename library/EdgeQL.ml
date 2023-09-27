@@ -32,6 +32,13 @@ let extractEdgeQLQueryName ~loc input =
     } filter .id = <uuid>$userId
   `)|}
 
+let splitPath str =
+  let regex = Str.regexp_string ".res" in
+  try
+    let index = Str.search_forward regex str 0 in
+    Str.string_before str index
+  with Not_found -> str
+
 let expressionExtension =
   Extension.declare "edgeql" Extension.Context.expression
     (let open Ast_pattern in
@@ -55,7 +62,7 @@ let moduleExtension =
       let lid =
         Longident.parse
           (Printf.sprintf "%s__edgeDb.%s"
-             Filename.(remove_extension (basename path))
+             (path |> splitPath |> Filename.basename)
              (capitalizeFirstLetter bindingName))
       in
-      Ast_helper.Mod.ident ~loc {txt = lid; loc = Location.none})
+      Ast_helper.Mod.ident ~loc {txt = lid; loc})
