@@ -1,6 +1,6 @@
 {
   "name": "rescript-embed-lang",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Starter Reason Esy Pesy Project",
   "esy": {
     "build": "dune build -p #{self.name}",
