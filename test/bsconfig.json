@@ -13,5 +13,7 @@
   "suffix": ".mjs",
   "bs-dependencies": ["@rescript/core"],
   "bsc-flags": ["-open RescriptCore"],
-  "ppx-flags": ["../_build/default/bin/RescriptEmbedLang.exe"]
+  "ppx-flags": [
+    ["../_build/default/bin/RescriptEmbedLang.exe", "-enable-generic-transform"]
+  ]
 }

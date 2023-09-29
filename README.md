@@ -68,6 +68,62 @@ Is transformed into:
 module FindMovieQuery = Movies__edgedb.FindMovieQuery
 ```
 
+### Generic transform
+
+`rescript-embed-lang` ships with a _generic transform_, intended to make experimenting with writing new language embeds + generating code for them much easier in user land, without needing you to add a full transform to this PPX. It expects a specific structure (more below) in order to connect your generated code with your ReScript source.
+
+You turn it on by passing `-enable-generic-transform` in your PPX flags config:
+
+```json
+"ppx-flags": [["rescript-embed-lang/ppx", "-enable-generic-transform"]]
+```
+
+It works like this:
+
+```rescript
+// SomeFile.res
+let myThing = %generated.css(`
+  .button {
+    color: blue;
+  }
+`)
+```
+
+This will be transformed into:
+
+```rescript
+// SomeFile.res
+let myThing = SomeFile__css.M1.default
+```
+
+It also works with module references:
+
+```rescript
+// SomeFile.res
+module MyThing = %generated.css(`
+  .button {
+    color: blue;
+  }
+`)
+```
+
+Is transformed into:
+
+```rescript
+// SomeFile.res
+module MyThing = SomeFile__css.M1
+```
+
+> Notice that you can put anything to the right of `%generated`. The example shows `css`, but you could use anything else as well. Example: `%generated.openapi("...")`.
+
+The formula for what code to refer to when transforming is be: `<filename>__<generated-extension>.M<module-count-for-extension>.default`. When using module bindings, the last part `.default` is omitted.
+
+1. We're in `SomeFile.res` and using `generated.css`, so the generated module is expected to be called `SomeFile__css`.
+2. Each submodule in your generated file will be called `M` + what number of transform for that extension it is, in the local file. So, the first `%generated.css` module is `M1`, the second in that same file is `M2`, and so on.
+3. Finally, we add a generic `default` a target value name, just to have something to refer to.
+
+> Remember, the actual codegen creating the module we're referring to here from the source `css` text isn't part of this package. This package is just about making it simple to tie together generated things with its source in ReScript.
+
 ### SQL (WIP)
 
 This is not finished yet, but will provide embedding for Postgres SQL via [pgtyped-rescript](https://github.com/zth/pgtyped-rescript).
@@ -86,34 +142,6 @@ Is transformed into:
 // Movies.res
 let findMovieQuery = Movies__sql.FindMovieQuery.query
 ```
-
-### Generic transform (WIP)
-
-It would be easy to extend `rescript-embed-lang` to support a _generic_ transform. This would make experimenting with writing new language embeds + generating code for them much easier in user land, without needing you to add a full transform to this PPX. It could look like this:
-
-```rescript
-// SomeFile.res
-let myThing = %generated.css(`
-  .button {
-    color: blue;
-  }
-`)
-```
-
-Could be (generically) transformed into:
-
-```rescript
-// SomeFile.res
-let myThing = SomeFile__css.M1.default
-```
-
-The formula for what code to refer to when transforming could be: `<filename>__<generated-extension>.<module>.<generic-value-name>`
-
-1. We're in `SomeFile.res` and using `generated.css`, so the generated module is expected to be called `SomeFile__css`.
-2. There's no name to be derived from the CSS string, so we expect the generated module to be called something generic (`M1` in this case, for the first module), referring to which generated `css` embed this is from in the file.
-3. Finally, we add a generic `default` a target value name, just to have something to refer to.
-
-> Remember, the actual codegen creating the module we're referring to here from the source `css` text isn't part of this package. This package is just about making it simple to tie together generated things with its source in ReScript.
 
 ## Adding more language embeds
 
