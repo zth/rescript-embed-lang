@@ -7,7 +7,8 @@
     "rescript": "^11.0.0-rc.3"
   },
   "scripts": {
-    "build": "rescript"
+    "build": "rescript",
+    "postinstall": "node postinstall.js"
   },
   "repository": {
     "type": "git",
