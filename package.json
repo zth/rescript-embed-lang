@@ -1,22 +1,29 @@
 {
   "name": "rescript-embed-lang",
   "version": "0.1.1",
-  "description": "Starter Reason Esy Pesy Project",
-  "esy": {
-    "build": "dune build -p #{self.name}",
-    "buildsInSource": "_build"
+  "description": "A general purpose PPX and library for embedding other languages into ReScript, via code generation.",
+  "main": "src/RescriptEmbedLang.mjs",
+  "devDependencies": {
+    "@rescript/core": "^0.5.0",
+    "rescript": "^11.0.0-rc.3",
+    "rescript-nodejs": "^15.0.0"
+  },
+  "peerDependencies": {
+    "@rescript/core": ">= 0.5.0",
+    "rescript": "^11.0.0-rc.1 || next"
   },
   "scripts": {
-    "start": "esy x RescriptEmbedLang.exe",
-    "linux-release-static": "dune build --root . ./bin/RescriptEmbedLang.exe --ignore-promoted-rules --no-config --profile release-static",
-    "postinstall": "node postinstall.js"
+    "build": "rescript"
   },
-  "dependencies": {
-    "ocaml": "4.14.0",
-    "@opam/dune": "3.7.1",
-    "@opam/ppxlib": "*"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zth/rescript-embed-lang.git"
   },
-  "resolutions": {
-    "@opam/ppxlib": "zth/ppxlib:ppxlib.opam#32f83395fb89693a873541298b6367449f23bc4a"
-  }
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/zth/rescript-embed-lang/issues"
+  },
+  "homepage": "https://github.com/zth/rescript-embed-lang#readme"
 }

@@ -1,7 +1,20 @@
 {
   "checksum": "c1462df931904bf3b9abb87002a84334",
-  "root": "edgedb-rescript-ppx@link-dev:./package.json",
+  "root": "rescript-embed-lang@link-dev:./esy.json",
   "node": {
+    "rescript-embed-lang@link-dev:./esy.json": {
+      "id": "rescript-embed-lang@link-dev:./esy.json",
+      "name": "rescript-embed-lang",
+      "version": "link-dev:./esy.json",
+      "source": { "type": "link-dev", "path": ".", "manifest": "esy.json" },
+      "overrides": [],
+      "dependencies": [
+        "ocaml@4.14.0@d41d8cd9",
+        "@opam/ppxlib@github:zth/ppxlib:ppxlib.opam#32f83395fb89693a873541298b6367449f23bc4a@d41d8cd9",
+        "@opam/dune@opam:3.7.1@7d826596"
+      ],
+      "devDependencies": []
+    },
     "ocaml@4.14.0@d41d8cd9": {
       "id": "ocaml@4.14.0@d41d8cd9",
       "name": "ocaml",
@@ -14,23 +27,6 @@
       },
       "overrides": [],
       "dependencies": [],
-      "devDependencies": []
-    },
-    "edgedb-rescript-ppx@link-dev:./package.json": {
-      "id": "edgedb-rescript-ppx@link-dev:./package.json",
-      "name": "edgedb-rescript-ppx",
-      "version": "link-dev:./package.json",
-      "source": {
-        "type": "link-dev",
-        "path": ".",
-        "manifest": "package.json"
-      },
-      "overrides": [],
-      "dependencies": [
-        "ocaml@4.14.0@d41d8cd9",
-        "@opam/ppxlib@github:zth/ppxlib:ppxlib.opam#32f83395fb89693a873541298b6367449f23bc4a@d41d8cd9",
-        "@opam/dune@opam:3.7.1@7d826596"
-      ],
       "devDependencies": []
     },
     "@opam/stdlib-shims@opam:0.3.0@72c7bc98": {

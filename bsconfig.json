@@ -1,0 +1,16 @@
+{
+  "name": "rescript-embed-lang",
+  "uncurried": true,
+  "sources": [
+    {
+      "dir": "src"
+    }
+  ],
+  "package-specs": {
+    "module": "es6",
+    "in-source": true
+  },
+  "suffix": ".mjs",
+  "bs-dependencies": ["@rescript/core", "rescript-nodejs"],
+  "bsc-flags": ["-open RescriptCore"]
+}

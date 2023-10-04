@@ -8,3 +8,5 @@ _release
 *.install
 **/.merlin
 release
+lib
+*.mjs
