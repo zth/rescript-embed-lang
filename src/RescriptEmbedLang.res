@@ -1,6 +1,7 @@
 module Path = NodeJs.Path
 module Process = NodeJs.Process
 module Fs = NodeJs.Fs
+module CodegenUtils = RescriptEmbedLang__CodegenUtils
 
 let colorRed = str => `\x1b[31m${str}\x1b[0m`
 

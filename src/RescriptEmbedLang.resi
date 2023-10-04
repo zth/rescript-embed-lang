@@ -1,3 +1,5 @@
+module CodegenUtils = RescriptEmbedLang__CodegenUtils
+
 /** Represents command line arguments. */
 module CliArgs: {
   type t
