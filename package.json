@@ -3,12 +3,17 @@
   "version": "0.1.1",
   "description": "A general purpose PPX and library for embedding other languages into ReScript, via code generation.",
   "main": "src/RescriptEmbedLang.mjs",
-  "dependencies": {
-    "rescript": "^11.0.0-rc.3"
+  "devDependencies": {
+    "@rescript/core": "^0.5.0",
+    "rescript": "^11.0.0-rc.3",
+    "rescript-nodejs": "^15.0.0"
+  },
+  "peerDependencies": {
+    "@rescript/core": ">= 0.5.0",
+    "rescript": "^11.0.0-rc.1 || next"
   },
   "scripts": {
-    "build": "rescript",
-    "postinstall": "node postinstall.js"
+    "build": "rescript"
   },
   "repository": {
     "type": "git",

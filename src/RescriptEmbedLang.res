@@ -2,6 +2,33 @@ module Path = NodeJs.Path
 module Process = NodeJs.Process
 module Fs = NodeJs.Fs
 
+let colorRed = str => `\x1b[31m${str}\x1b[0m`
+
+module Chokidar = {
+  type t
+
+  module Watcher = {
+    type t
+
+    @send
+    external onChange: (t, @as(json`"change"`) _, string => promise<unit>) => t = "on"
+
+    @send
+    external onUnlink: (t, @as(json`"unlink"`) _, string => promise<unit>) => t = "on"
+
+    @send
+    external onAdd: (t, @as(json`"add"`) _, string => promise<unit>) => t = "on"
+  }
+
+  @module("chokidar") @val
+  external watcher: t = "default"
+
+  type watchOptions = {ignored?: array<string>, ignoreInitial?: bool}
+
+  @send
+  external watch: (t, string, ~options: watchOptions=?) => Watcher.t = "watch"
+}
+
 module Glob = {
   @live
   type opts = {
@@ -99,10 +126,19 @@ type generated =
   | WithModuleName({moduleName: string, content: string})
   | NoModuleName({content: string})
 
+type emitFileReturn = {
+  path: string,
+  fileName: string,
+}
+
 type generateConfig<'config> = {
   config: 'config,
   content: string,
-  emitExtraFile: (~extension: string, ~content: string) => unit,
+  emitExtraFile: (
+    ~extension: string,
+    ~content: string,
+    ~moduleName: option<string>,
+  ) => emitFileReturn,
 }
 
 type handleOtherCommandConfig<'config> = {
@@ -181,7 +217,44 @@ let extractEmbedsFromRescript = (t: t<_>, fileText: string) => {
   embeds->Array.keepSome
 }
 
-module ReadFile = EdgeDbGenerator__Utils.ReadFile
+module ReadFile = {
+  @module("fs")
+  external createReadStream: string => 'stream = "createReadStream"
+
+  type createInterfaceOptions<'stream> = {
+    input: 'stream,
+    crlfDelay: int,
+  }
+
+  @send external destroy: 'stream => unit = "destroy"
+
+  @send external onLine: ('a, @as("line") _, string => unit) => unit = "on"
+  @send external onError: ('a, @as("error") _, string => unit) => unit = "on"
+  @module("readline")
+  external createInterface: createInterfaceOptions<'stream> => 'readlineInterface =
+    "createInterface"
+
+  let readFirstLine = (filePath: string): promise<result<string, unit>> => {
+    let readStream = createReadStream(filePath)
+
+    let rl = createInterface({
+      input: readStream,
+      crlfDelay: %raw("Infinity"),
+    })
+
+    Promise.make((resolve, _reject) => {
+      let _ = rl->onLine((line: string) => {
+        let _ = rl["close"]()
+        readStream->destroy
+        resolve(Ok(line))
+      })
+
+      rl->onError(_err => {
+        resolve(Error())
+      })
+    })
+  }
+}
 
 let getFileSourceHash = async filePath => {
   switch await ReadFile.readFirstLine(filePath) {
@@ -212,9 +285,16 @@ let genereteFileForEmbeds = async (
           switch await t.generate({
             config,
             content,
-            emitExtraFile: (~extension, ~content) => {
+            emitExtraFile: (~extension, ~content, ~moduleName) => {
               debug(`[emit] Emitting extra file with extension .${extension}`)
-              extraFiles->Dict.set(extension, content)
+              let fileName = toFileBaseName(path)
+              let moduleName = moduleName->Option.getWithDefault(`M${Int.toString(index + 1)}`)
+              let emittedFileName = `${fileName}__${t.fileName->FileName.getExtensionName}.${moduleName}.${extension}`
+              extraFiles->Dict.set(emittedFileName, content)
+              {
+                path: Path.resolve([outputDir, emittedFileName]),
+                fileName: emittedFileName,
+              }
             },
           }) {
           | Ok(res) =>
@@ -226,9 +306,7 @@ let genereteFileForEmbeds = async (
             let extraFiles =
               extraFiles
               ->Dict.toArray
-              ->Array.map(((extension, content)) => {
-                let fileName = toFileBaseName(path)
-                let emittedFileName = `${fileName}__${t.fileName->FileName.getExtensionName}.${moduleName}.${extension}`
+              ->Array.map(((emittedFileName, content)) => {
                 debug(`[emit] Emitting file "${emittedFileName}"`)
                 (emittedFileName, content)
               })
@@ -287,7 +365,7 @@ let genereteFileForEmbeds = async (
     }
   } catch {
   | Exn.Error(e) =>
-    Console.log(`${CliUtils.colorRed("Error in file")} ${Path.basename(path)}:`)
+    Console.log(`${colorRed("Error in file")} ${Path.basename(path)}:`)
     Console.error(e)
   }
 }
@@ -305,20 +383,20 @@ let cleanUpExtraFiles = (t, ~outputDir, ~sourceFileModuleName="*", ~keepThese=[]
   })
 }
 
-let runCli = async t => {
+let runCli = async (t, ~args: option<array<string>>=?) => {
   let debugging = ref(false)
   let debug = msg =>
     if debugging.contents {
       Console.debug(msg)
     }
-  let args = argv->Array.sliceToEnd(~start=2)->Array.keepSome
-  debugging := args->CliUtils.hasArg("--debug")
+  let args = args->Option.getWithDefault(argv->Array.sliceToEnd(~start=2)->Array.keepSome)
+  debugging := args->CliArgs.hasArg("--debug")
 
   switch args[0] {
   | Some("generate") =>
     let config = await t.setup({args: args})
-    let watch = args->CliUtils.hasArg("--watch")
-    let pathToGeneratedDir = switch args->CliUtils.getArgValue(["--output"]) {
+    let watch = args->CliArgs.hasArg("--watch")
+    let pathToGeneratedDir = switch args->CliArgs.getArgValue(["--output"]) {
     | None =>
       panic(`--output must be set. It controls into what directory all generated files are emitted.`)
     | Some(outputDir) =>
@@ -326,7 +404,7 @@ let runCli = async t => {
       Path.resolve([joined])
     }
     let outputDir = pathToGeneratedDir
-    let src = switch args->CliUtils.getArgValue(["--src"]) {
+    let src = switch args->CliArgs.getArgValue(["--src"]) {
     | None => panic(`--src must be set. It controls where to look for source ReScript files.`)
     | Some(src) =>
       let joined = Path.join([Process.process->Process.cwd, src])
@@ -428,8 +506,6 @@ let runCli = async t => {
     }
 
     if watch {
-      open CliBindings
-
       await runGeneration()
       Console.log(`Watching for changes in ${src}...`)
 

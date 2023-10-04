@@ -111,7 +111,11 @@ let embedLang = RescriptEmbedLang.make(
       cssModules: true,
     })
 
-    emitExtraFile(~content=String.make(code), ~extension="css")
+    let emittedCssFile = emitExtraFile(
+      ~content=String.make(code),
+      ~extension="css",
+      ~moduleName=None,
+    )
 
     let recordAttributes = switch exports {
     | Some(dict) =>
@@ -133,7 +137,7 @@ let embedLang = RescriptEmbedLang.make(
 
     Ok(
       RescriptEmbedLang.NoModuleName({
-        content: `%%raw(\`import "./something.css"\`)
+        content: `%%raw(\`import "./${emittedCssFile.fileName}"\`)
 
 type cssModules = {
   ${recordBody}

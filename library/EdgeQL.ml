@@ -47,7 +47,7 @@ let expressionExtension =
       let bindingName = extractEdgeQLQueryName queryStr ~loc in
       let lid =
         Longident.parse
-          (Printf.sprintf "%s__edgeDb.%s.query"
+          (Printf.sprintf "%s__edgeql.%s.query"
              Filename.(remove_extension (basename path))
              (capitalizeFirstLetter bindingName))
       in
@@ -61,7 +61,7 @@ let moduleExtension =
       let bindingName = extractEdgeQLQueryName ~loc queryStr in
       let lid =
         Longident.parse
-          (Printf.sprintf "%s__edgeDb.%s"
+          (Printf.sprintf "%s__edgeql.%s"
              (path |> splitPath |> Filename.basename)
              (capitalizeFirstLetter bindingName))
       in
