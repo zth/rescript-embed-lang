@@ -1,8 +1,16 @@
 # Changelog
 
+## master
+
+## 0.2.2
+
+- Handle whitespace in and around single line comments.
+
+## 0.2.1
+
 - Fix so that extension nodes aren't picked up in single line comments.
 
-## master
+## 0.2.0
 
 - Implement `%generated.whatever` generic transform.
 
