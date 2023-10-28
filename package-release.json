@@ -1,6 +1,6 @@
 {
   "name": "rescript-embed-lang",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "A general purpose PPX and library for embedding other languages into ReScript, via code generation.",
   "keywords": ["rescript"],
   "scripts": {
