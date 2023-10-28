@@ -83,9 +83,12 @@ module FileName = {
     pattern,
     regExp: switch pattern {
     | Generic(extension) =>
-      RegExp.fromStringWithFlags("%generated\\." ++ extension ++ "\\(`([^`]+)`\\)", ~flags="g")
+      RegExp.fromStringWithFlags(
+        "(?<!\/\/.*)%generated\\." ++ extension ++ "\\(`([^`]+)`\\)",
+        ~flags="g",
+      )
     | FirstClass(extension) =>
-      RegExp.fromStringWithFlags("%" ++ extension ++ "\\(`([^`]+)`\\)", ~flags="g")
+      RegExp.fromStringWithFlags("(?<!\/\/.*)%" ++ extension ++ "\\(`([^`]+)`\\)", ~flags="g")
     },
   }
   let getExtensionName = t =>

@@ -1,5 +1,7 @@
 # Changelog
 
+- Fix so that extension nodes aren't picked up in single line comments.
+
 ## master
 
 - Implement `%generated.whatever` generic transform.

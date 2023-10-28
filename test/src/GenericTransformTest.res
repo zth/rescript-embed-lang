@@ -2,6 +2,10 @@ let genericAsLetBinding = %generated.css(`
   some css here
 `)
 
+// let commentedOut = %generated.css(`
+//   some css here
+// `)
+
 let _default = genericAsLetBinding
 
 module Generic_as_module = %generated.css(`
