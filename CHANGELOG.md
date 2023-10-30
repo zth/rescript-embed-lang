@@ -2,6 +2,8 @@
 
 ## master
 
+- Fix bug in `%edgeql` transform that caused nested let bindings to not work.
+
 ## 0.2.2
 
 - Handle whitespace in and around single line comments.

@@ -32,23 +32,17 @@ let extractEdgeQLQueryName ~loc input =
     } filter .id = <uuid>$userId
   `)|}
 
-let splitPath str =
-  let regex = Str.regexp_string ".res" in
-  try
-    let index = Str.search_forward regex str 0 in
-    Str.string_before str index
-  with Not_found -> str
-
 let expressionExtension =
   Extension.declare "edgeql" Extension.Context.expression
     (let open Ast_pattern in
     single_expr_payload (estring __))
     (fun ~loc ~path queryStr ->
       let bindingName = extractEdgeQLQueryName queryStr ~loc in
+      let fileName = loc.loc_start.pos_fname in
       let lid =
         Longident.parse
           (Printf.sprintf "%s__edgeql.%s.query"
-             Filename.(remove_extension (basename path))
+             Filename.(remove_extension (basename fileName))
              (capitalizeFirstLetter bindingName))
       in
       Ast_helper.Exp.ident ~loc {txt = lid; loc})
@@ -59,10 +53,11 @@ let moduleExtension =
     single_expr_payload (estring __))
     (fun ~loc ~path queryStr ->
       let bindingName = extractEdgeQLQueryName ~loc queryStr in
+      let fileName = loc.loc_start.pos_fname in
       let lid =
         Longident.parse
           (Printf.sprintf "%s__edgeql.%s"
-             (path |> splitPath |> Filename.basename)
+             Filename.(remove_extension (basename fileName))
              (capitalizeFirstLetter bindingName))
       in
       Ast_helper.Mod.ident ~loc {txt = lid; loc})
