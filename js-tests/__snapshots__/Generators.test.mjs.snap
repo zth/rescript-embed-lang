@@ -1,0 +1,41 @@
+// Bun Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`findContentInFile finds content 1`] = `
+[
+  {
+    "content": [
+      "",
+      "  # @name TestQuery",
+      "  select User {",
+      "    name",
+      "  } filter .name = 'test'",
+      "",
+    ],
+    "end": {
+      "col": 0,
+      "line": 5,
+    },
+    "start": {
+      "col": 12,
+      "line": 0,
+    },
+    "tag": "%edgeql",
+  },
+  {
+    "content": [
+      "",
+      "  display: flex;",
+      "",
+    ],
+    "end": {
+      "col": 0,
+      "line": 18,
+    },
+    "start": {
+      "col": 14,
+      "line": 16,
+    },
+    "tag": "%css",
+  },
+]
+`;

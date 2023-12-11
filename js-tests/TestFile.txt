@@ -1,0 +1,27 @@
+let query = %edgeql(`
+  # @name TestQuery
+  select User {
+    name
+  } filter .name = 'test'
+`)
+
+/*
+let commentedOut = %edgeql(`
+  # @name TestQueryCommentedOut
+  select User {
+    name
+  } filter .name = 'test'
+`)
+*/
+
+let between = %css(`
+  display: flex;
+`)
+
+
+// let commentedOut = %edgeql(`
+//  # @name TestQueryCommentedOutSingleLine
+//  select User {
+//    name
+//  } filter .name = 'test'
+// `)

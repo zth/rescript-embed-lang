@@ -2,6 +2,7 @@ module Path = NodeJs.Path
 module Process = NodeJs.Process
 module Fs = NodeJs.Fs
 module CodegenUtils = RescriptEmbedLang__CodegenUtils
+module Internal = RescriptEmbedLang__Internal
 
 let colorRed = str => `\x1b[31m${str}\x1b[0m`
 
@@ -135,7 +136,19 @@ type emitFileReturn = {
   fileName: string,
 }
 
+type loc = {
+  line: int,
+  col: int,
+}
+
+type fileLocation = {
+  start: loc,
+  end: loc,
+}
+
 type generateConfig<'config> = {
+  location: fileLocation,
+  path: string,
   config: 'config,
   content: string,
   emitExtraFile: (
@@ -203,72 +216,15 @@ let getMatches = (t, ~root, ~includeExtension) =>
 @val
 external argv: array<option<string>> = "process.argv"
 
-@send
-external matchAll: (string, RegExp.t) => Iterator.t<array<string>> = "matchAll"
-
-let extractEmbedsFromRescript = (t: t<_>, fileText: string) => {
-  let embeds =
-    fileText
-    ->matchAll(t.fileName.regExp)
-    ->Iterator.toArray
-    ->Array.map(match => {
-      switch match {
-      | [_, text] => Some(text)
-      | _ => None
-      }
-    })
-
-  embeds->Array.keepSome
-}
-
-module ReadFile = {
-  @module("fs")
-  external createReadStream: string => 'stream = "createReadStream"
-
-  type createInterfaceOptions<'stream> = {
-    input: 'stream,
-    crlfDelay: int,
-  }
-
-  @send external destroy: 'stream => unit = "destroy"
-
-  @send external onLine: ('a, @as("line") _, string => unit) => unit = "on"
-  @send external onError: ('a, @as("error") _, string => unit) => unit = "on"
-  @module("readline")
-  external createInterface: createInterfaceOptions<'stream> => 'readlineInterface =
-    "createInterface"
-
-  let readFirstLine = (filePath: string): promise<result<string, unit>> => {
-    let readStream = createReadStream(filePath)
-
-    let rl = createInterface({
-      input: readStream,
-      crlfDelay: %raw("Infinity"),
-    })
-
-    Promise.make((resolve, _reject) => {
-      let _ = rl->onLine((line: string) => {
-        let _ = rl["close"]()
-        readStream->destroy
-        resolve(Ok(line))
-      })
-
-      rl->onError(_err => {
-        resolve(Error())
-      })
-    })
-  }
-}
-
 let getFileSourceHash = async filePath => {
-  switch await ReadFile.readFirstLine(filePath) {
+  switch await Internal.ReadFile.readFirstLine(filePath) {
   | Ok(firstLine) => firstLine->String.split("// @sourceHash ")->Array.get(1)
   | Error() => None
   | exception Exn.Error(_) => None
   }
 }
 
-let genereteFileForEmbeds = async (
+let generateFileForEmbeds = async (
   t: t<_>,
   path: string,
   ~fileModulesWithContent,
@@ -278,17 +234,22 @@ let genereteFileForEmbeds = async (
   ~debug,
 ) => {
   try {
-    let fileText = Fs.readFileSync(path)->NodeJs.Buffer.toString
-    if fileText->String.includes(`${t.fileName->FileName.getFullExtension}(`) {
+    let ext = t.fileName->FileName.getFullExtension
+    let embeds = await path->Internal.findContentInFile([ext])
+    if embeds->Array.find(embed => embed.tag === ext)->Option.isSome {
       fileModulesWithContent->Set.add(path->Path.basenameExt(".res"))
-      let embeds = t->extractEmbedsFromRescript(fileText)
       let generatedContent = await Promise.all(
         embeds->Array.mapWithIndex(async (content, index) => {
           let extraFiles = Dict.make()
 
           switch await t.generate({
+            path,
+            location: {
+              start: (content.start :> loc),
+              end: (content.end :> loc),
+            },
             config,
-            content,
+            content: content.content->Array.joinWith("\n"),
             emitExtraFile: (~extension, ~content, ~moduleName) => {
               debug(`[emit] Emitting extra file with extension .${extension}`)
               let fileName = toFileBaseName(path)
@@ -441,7 +402,7 @@ let runCli = async (t, ~args: option<array<string>>=?) => {
 
         let _ = await Promise.all(
           matches->Array.map(match =>
-            t->genereteFileForEmbeds(
+            t->generateFileForEmbeds(
               match,
               ~fileModulesWithContent,
               ~config,
