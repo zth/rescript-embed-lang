@@ -4,6 +4,10 @@
   "sources": [
     {
       "dir": "src"
+    },
+    {
+      "dir": "js-tests",
+      "type": "dev"
     }
   ],
   "package-specs": {

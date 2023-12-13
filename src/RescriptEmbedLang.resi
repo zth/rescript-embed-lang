@@ -73,10 +73,26 @@ type emitFileReturn = {
   fileName: string,
 }
 
+/** A location. */
+type loc = {
+  line: int,
+  col: int,
+}
+
+/** A location in a file. */
+type fileLocation = {
+  start: loc,
+  end: loc,
+}
+
 /**
  Configuration passed to the `generate` config.
 */
 type generateConfig<'config> = {
+  /** The location of this content in the source file. */
+  location: fileLocation,
+  /** The path to the ReScript file the content was found in. */
+  path: string,
   /** The config setup for this embed. */
   config: 'config,
   /** The content of the tag we're currently generating from.
