@@ -2,6 +2,10 @@
 
 ## master
 
+## 0.3.0
+
+- Propagate location and path info when running generators.
+
 ## 0.2.4
 
 - Fix bug in `%edgeql` transform that caused nested let bindings to not work.
