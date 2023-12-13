@@ -67,7 +67,9 @@ let commentClose = "*/"
 let ending = "`)" // TODO: Regexp
 
 type loc = {
+  /** 0 based */
   line: int,
+  /** 0 based */
   col: int,
 }
 
@@ -93,20 +95,26 @@ let findContentInFile = async (filePath, tags) => {
 
     let trimmedLine = line->String.trim
     let isSingleLineComment = trimmedLine->String.startsWith("//")
-    if isSingleLineComment {
-      inComment := true
-      break := true
-    } else if inComment.contents && line->String.includes(commentClose) {
+
+    if inComment.contents && line->String.includes(commentClose) {
+      // Detect comment end
       inComment := false
       break := true
     } else if inComment.contents {
+      // Break if in a comment
       break := true
     } else if (
       !inComment.contents &&
       (trimmedLine->String.startsWith(docCommentOpen) ||
         trimmedLine->String.startsWith(commentOpen))
     ) {
+      // Break if comment starting
+      // TODO: Nested comments?
       inComment := true
+      break := true
+    }
+
+    if isSingleLineComment {
       break := true
     }
 
@@ -122,7 +130,7 @@ let findContentInFile = async (filePath, tags) => {
               ...c,
               end: {
                 line: currentLine,
-                col: before->String.length,
+                col: before->String.length - 1 /* Make 0 based */,
               },
             })
           | _ => ()
@@ -140,7 +148,7 @@ let findContentInFile = async (filePath, tags) => {
           | [before, after] =>
             let startPos = {
               line: currentLine,
-              col: before->String.length,
+              col: before->String.length + tagOnLine->String.length - 1 /* Make 0 based */,
             }
             pushingContent :=
               Some({
