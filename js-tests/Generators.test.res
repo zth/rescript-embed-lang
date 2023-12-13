@@ -10,6 +10,10 @@ describe("findContentInFile", () => {
     NodeJs.Process.process->NodeJs.Process.cwd,
     "js-tests/TestFile2.txt",
   ])
+  let testFile3 = Path.resolve([
+    NodeJs.Process.process->NodeJs.Process.cwd,
+    "js-tests/TestFile3.txt",
+  ])
 
   testAsync("finds content", async () => {
     let foundContent = await testFile->findContentInFile(["%edgeql", "%css"])
@@ -18,7 +22,11 @@ describe("findContentInFile", () => {
 
   testAsync("finds content 2", async () => {
     let foundContent = await testFile2->findContentInFile(["%edgeql"])
-    Console.log(foundContent)
+    expect(foundContent)->Expect.toMatchSnapshot
+  })
+
+  testAsync("finds content 3", async () => {
+    let foundContent = await testFile3->findContentInFile(["%edgeql"])
     expect(foundContent)->Expect.toMatchSnapshot
   })
 })

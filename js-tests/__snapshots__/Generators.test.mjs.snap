@@ -12,11 +12,11 @@ exports[`findContentInFile finds content 1`] = `
       "",
     ],
     "end": {
-      "col": -1,
+      "col": 0,
       "line": 5,
     },
     "start": {
-      "col": 20,
+      "col": 21,
       "line": 0,
     },
     "tag": "%edgeql",
@@ -28,11 +28,11 @@ exports[`findContentInFile finds content 1`] = `
       "",
     ],
     "end": {
-      "col": -1,
+      "col": 0,
       "line": 18,
     },
     "start": {
-      "col": 19,
+      "col": 20,
       "line": 16,
     },
     "tag": "%css",
@@ -58,11 +58,11 @@ exports[`findContentInFile finds content 2 1`] = `
       "    ",
     ],
     "end": {
-      "col": 3,
+      "col": 4,
       "line": 12,
     },
     "start": {
-      "col": 22,
+      "col": 23,
       "line": 1,
     },
     "tag": "%edgeql",
@@ -83,11 +83,11 @@ exports[`findContentInFile finds content 2 1`] = `
       "    ",
     ],
     "end": {
-      "col": 3,
+      "col": 4,
       "line": 36,
     },
     "start": {
-      "col": 22,
+      "col": 23,
       "line": 25,
     },
     "tag": "%edgeql",
@@ -120,11 +120,11 @@ exports[`findContentInFile finds content 2 1`] = `
       "    ",
     ],
     "end": {
-      "col": 3,
+      "col": 4,
       "line": 63,
     },
     "start": {
-      "col": 22,
+      "col": 23,
       "line": 40,
     },
     "tag": "%edgeql",
@@ -139,11 +139,11 @@ exports[`findContentInFile finds content 2 1`] = `
       "",
     ],
     "end": {
-      "col": -1,
+      "col": 0,
       "line": 75,
     },
     "start": {
-      "col": 26,
+      "col": 27,
       "line": 70,
     },
     "tag": "%edgeql",
@@ -156,11 +156,139 @@ exports[`findContentInFile finds content 2 1`] = `
       "",
     ],
     "end": {
-      "col": -1,
+      "col": 0,
       "line": 82,
     },
     "start": {
-      "col": 29,
+      "col": 30,
+      "line": 79,
+    },
+    "tag": "%edgeql",
+  },
+]
+`;
+
+exports[`findContentInFile finds content 3 1`] = `
+[
+  {
+    "content": [
+      "",
+      "    # @name allMovies",
+      "    select Movie {",
+      "      id,",
+      "      title",
+      "      actors: {",
+      "          id,",
+      "          name,",
+      "          numberOfPets := count(.pets)",
+      "      }",
+      "    } order by .title",
+      "    ",
+    ],
+    "end": {
+      "col": 4,
+      "line": 12,
+    },
+    "start": {
+      "col": 23,
+      "line": 1,
+    },
+    "tag": "%edgeql",
+  },
+  {
+    "content": [
+      "",
+      "    # @name allMoviesNested",
+      "    select Movie {",
+      "      id,",
+      "      title,",
+      "      actors: {",
+      "          id,",
+      "          name,",
+      "          numberOfPets := count(.pets)",
+      "      }",
+      "    } order by .title",
+      "    ",
+    ],
+    "end": {
+      "col": 4,
+      "line": 36,
+    },
+    "start": {
+      "col": 23,
+      "line": 25,
+    },
+    "tag": "%edgeql",
+  },
+  {
+    "content": [
+      "",
+      "    # @name movieByTitle",
+      "    select Movie {",
+      "      id,",
+      "      title,",
+      "      actors: {",
+      "          id,",
+      "          name,",
+      "          numberOfPets := count(.pets),",
+      "          typesDump: {",
+      "            date,",
+      "            localDateTime,",
+      "            localDate,",
+      "            relativeDuration,",
+      "            duration,",
+      "            dateDuration,",
+      "            localTime,",
+      "            json",
+      "          }",
+      "      }",
+      "    } ",
+      "      filter .title = <str>$title",
+      "      limit 1",
+      "    ",
+    ],
+    "end": {
+      "col": 4,
+      "line": 63,
+    },
+    "start": {
+      "col": 23,
+      "line": 40,
+    },
+    "tag": "%edgeql",
+  },
+  {
+    "content": [
+      "",
+      "  # @name AddActor",
+      "  insert Person {",
+      "    name := <str>$name",
+      "  }",
+      "",
+    ],
+    "end": {
+      "col": 0,
+      "line": 75,
+    },
+    "start": {
+      "col": 27,
+      "line": 70,
+    },
+    "tag": "%edgeql",
+  },
+  {
+    "content": [
+      "",
+      "  # @name RemoveActor",
+      "  delete Person filter .id = <uuid>$id",
+      "",
+    ],
+    "end": {
+      "col": 0,
+      "line": 82,
+    },
+    "start": {
+      "col": 30,
       "line": 79,
     },
     "tag": "%edgeql",

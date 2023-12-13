@@ -130,7 +130,7 @@ let findContentInFile = async (filePath, tags) => {
               ...c,
               end: {
                 line: currentLine,
-                col: before->String.length - 1 /* Make 0 based */,
+                col: before->String.length,
               },
             })
           | _ => ()
@@ -148,7 +148,7 @@ let findContentInFile = async (filePath, tags) => {
           | [before, after] =>
             let startPos = {
               line: currentLine,
-              col: before->String.length + tagOnLine->String.length - 1 /* Make 0 based */,
+              col: before->String.length + tagOnLine->String.length,
             }
             pushingContent :=
               Some({
