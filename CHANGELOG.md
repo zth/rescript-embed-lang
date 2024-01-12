@@ -2,6 +2,8 @@
 
 ## master
 
+- Bring ReScript version up to `11`.
+
 ## 0.3.0
 
 - Propagate location and path info when running generators.

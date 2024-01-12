@@ -253,7 +253,7 @@ let generateFileForEmbeds = async (
             emitExtraFile: (~extension, ~content, ~moduleName) => {
               debug(`[emit] Emitting extra file with extension .${extension}`)
               let fileName = toFileBaseName(path)
-              let moduleName = moduleName->Option.getWithDefault(`M${Int.toString(index + 1)}`)
+              let moduleName = moduleName->Option.getOr(`M${Int.toString(index + 1)}`)
               let emittedFileName = `${fileName}__${t.fileName->FileName.getExtensionName}.${moduleName}.${extension}`
               extraFiles->Dict.set(emittedFileName, content)
               {
@@ -354,7 +354,7 @@ let runCli = async (t, ~args: option<array<string>>=?) => {
     if debugging.contents {
       Console.debug(msg)
     }
-  let args = args->Option.getWithDefault(argv->Array.sliceToEnd(~start=2)->Array.keepSome)
+  let args = args->Option.getOr(argv->Array.sliceToEnd(~start=2)->Array.keepSome)
   debugging := args->CliArgs.hasArg("--debug")
 
   switch args[0] {
@@ -382,7 +382,7 @@ let runCli = async (t, ~args: option<array<string>>=?) => {
     } catch {
     | Exn.Error(_) =>
       Console.log(`Output directory did not exist. Creating now...`)
-      await Fs.mkdirWith(pathToGeneratedDir, Fs.mkdirOptions(~recursive=true, ()))
+      await Fs.mkdirWith(pathToGeneratedDir, {recursive: true})
     }
 
     let runGeneration = async (~files=?) => {
