@@ -2,6 +2,7 @@
 
 ## master
 
+- Allow using `%generated` with `include`.
 - Bring ReScript version up to `11`.
 
 ## 0.3.0

@@ -26,7 +26,9 @@ type transformMode = LetBinding | ModuleBinding
 let makeLident fileName ~extensionName ~transformMode =
   Longident.parse
     (Printf.sprintf "%s__%s.M%i%s"
-       Filename.(remove_extension (basename fileName))
+       (if String.ends_with fileName ~suffix:".res" then
+          Filename.(chop_suffix (basename fileName) ".res")
+        else Filename.(chop_suffix (basename fileName) ".resi"))
        extensionName
        (getTransformedCount extensionName)
        (match transformMode with
@@ -79,6 +81,36 @@ class mapper =
             pstr_desc =
               Pstr_value
                 (recFlag, [{valueBinding with pvb_expr = transformExpr expr}]);
+          })
+      | Pstr_include
+          ({
+             pincl_mod =
+               {pmod_desc = Pmod_extension ({txt = extName; loc}, _)} as pmod;
+           } as pincl)
+        when extName |> isGeneratedExtensionNode -> (
+        match extractGeneratedExtensionNode extName with
+        | None -> structure_item
+        | Some extensionName ->
+          incrementTransformedCount extensionName;
+          {
+            structure_item with
+            pstr_desc =
+              Pstr_include
+                {
+                  pincl with
+                  pincl_mod =
+                    {
+                      pmod with
+                      pmod_desc =
+                        Pmod_ident
+                          {
+                            txt =
+                              makeLident loc.loc_start.pos_fname ~extensionName
+                                ~transformMode:ModuleBinding;
+                            loc;
+                          };
+                    };
+                };
           })
       | Pstr_module
           ({
