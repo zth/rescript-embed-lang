@@ -358,6 +358,22 @@ let runCli = async (t, ~args: option<array<string>>=?) => {
   debugging := args->CliArgs.hasArg("--debug")
 
   switch args[0] {
+  | Some("extract") =>
+    let filePath = switch args[1] {
+    | None =>
+      Console.error("You must supply a file path as the second argument to the command \"extract\"")
+      open Process
+      process->exitWithCode(1)
+      // Dummy raise because exit above should return `'any` but doesn't.
+      raise(Not_found)
+    | Some(p) => p
+    }
+    let ext = t.fileName->FileName.getFullExtension
+    let content = await Internal.extractContentInFile(filePath, [ext])
+    content->JSON.stringifyAny->Console.log
+
+    open Process
+    process->exitWithCode(0)
   | Some("generate") =>
     let config = await t.setup({args: args})
     let watch = args->CliArgs.hasArg("--watch")

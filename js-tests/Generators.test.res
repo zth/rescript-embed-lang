@@ -30,3 +30,12 @@ describe("findContentInFile", () => {
     expect(foundContent)->Expect.toMatchSnapshot
   })
 })
+
+describe("extractContentInFile", () => {
+  let testFile = Path.resolve([NodeJs.Process.process->NodeJs.Process.cwd, "js-tests/TestFile.txt"])
+
+  testAsync("extracts content", async () => {
+    let foundContent = await testFile->extractContentInFile(["%edgeql", "%css"])
+    expect(foundContent)->Expect.toMatchSnapshot
+  })
+})

@@ -168,3 +168,16 @@ let findContentInFile = async (filePath, tags) => {
   | exception Exn.Error(_) => foundContent
   }
 }
+
+let extractContentInFile = async (filePath, tags) => {
+  let content = await findContentInFile(filePath, tags)
+
+  content->Array.map(c =>
+    {
+      "content": c.content->Array.joinWith("\n"),
+      "start": c.start,
+      "end": c.end,
+      "tag": c.tag,
+    }
+  )
+}
