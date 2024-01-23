@@ -2,6 +2,8 @@
 
 ## master
 
+## 0.4.0
+
 - Add `extract <filePath>` CLI command for easily extracting content + loc info from a file.
 - Allow using `%generated` with `include`.
 - Bring ReScript version up to `11`.
