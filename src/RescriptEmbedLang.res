@@ -187,10 +187,11 @@ type watcher = {
   onChange: watcherOnChangeConfig => promise<unit>
 }
 
-type setupResult<'config> = {
-  config: 'config,
-  additionalFileWatchers?: array<watcher>
-}
+type setupResult<'config> =
+  | SetupResult({
+      config: 'config,
+      additionalFileWatchers?: array<watcher>
+    })
 
 type onWatchConfig<'config> = {
   config: 'config,
@@ -207,7 +208,7 @@ type t<'config> = {
   onWatch?: onWatchConfig<'config> => promise<unit>,
 }
 
-let defaultSetup = async (_): setupResult<_> => {config: ()}
+let defaultSetup = async (_): setupResult<_> => SetupResult({config: ()})
 
 let make = (
   ~extensionPattern,
@@ -408,7 +409,7 @@ let runCli = async (t, ~args: option<array<string>>=?) => {
     process->exitWithCode(0)
   | Some("generate") =>
     let watch = args->CliArgs.hasArg("--watch")
-    let {config, ?additionalFileWatchers} = await t.setup({
+    let SetupResult({config, ?additionalFileWatchers}) = await t.setup({
       args: args,
     })
     let customWatchedFiles =
@@ -579,8 +580,10 @@ let runCli = async (t, ~args: option<array<string>>=?) => {
   | Some(otherCommand) =>
     switch t.handleOtherCommand {
     | None => Console.log(t.cliHelpText)
-    | Some(handleOtherCommand) =>
-      await handleOtherCommand({args, command: otherCommand, config: (await t.setup({args: args})).config})
+    | Some(handleOtherCommand) => {
+        let SetupResult({config}) =  await t.setup({args: args})
+        await handleOtherCommand({args, command: otherCommand, config})
+      }
     }
   | None => Console.log(t.cliHelpText)
   }

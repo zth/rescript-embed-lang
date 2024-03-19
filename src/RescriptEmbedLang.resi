@@ -158,12 +158,13 @@ type watcher = {
   onChange: watcherOnChangeConfig => promise<unit>
 }
 
-type setupResult<'config> = {
-  /** Config object to provide to future calls */
-  config: 'config,
-  /** Additional files to keep an eye on in watch mode */
-  additionalFileWatchers?: array<watcher>
-}
+type setupResult<'config> =
+  | SetupResult({
+      /** Config object to provide to future calls */
+      config: 'config,
+      /** Additional files to keep an eye on in watch mode */
+      additionalFileWatchers?: array<watcher>
+    })
 
 /** A default function for `setup`, that just returns nothing. */
 let defaultSetup: setupConfig => promise<setupResult<unit>>
