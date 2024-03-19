@@ -28,7 +28,7 @@ module Chokidar = {
   type watchOptions = {ignored?: array<string>, ignoreInitial?: bool}
 
   @send
-  external watch: (t, string, ~options: watchOptions=?) => Watcher.t = "watch"
+  external watch: (t, array<string>, ~options: watchOptions=?) => Watcher.t = "watch"
 }
 
 module Glob = {
@@ -44,6 +44,14 @@ module Glob = {
 
   @module("fast-glob")
   external glob: glob = "default"
+}
+
+module MicroMatch = {
+  type mm = {
+    makeRe: string => RegExp.t
+  }
+  @module("micromatch")
+  external mm: mm = "default"
 }
 
 module Hash = {
@@ -166,6 +174,24 @@ type handleOtherCommandConfig<'config> = {
 
 type setupConfig = {args: CliArgs.t}
 
+type watcherOnChangeConfig = {
+  file: string,
+  runGeneration: (~files: array<string>=?) => promise<unit>,
+}
+
+type watcher = {
+  filePattern: string,
+  onChange: watcherOnChangeConfig => promise<unit>
+}
+
+@unboxed
+type setupResult<'config> =
+  | SetupResult({
+      config: 'config,
+      additionalFileWatchers?: array<watcher>,
+      additionalIgnorePatterns?: array<string>
+    })
+
 type onWatchConfig<'config> = {
   config: 'config,
   runGeneration: (~files: array<string>=?) => promise<unit>,
@@ -174,14 +200,14 @@ type onWatchConfig<'config> = {
 
 type t<'config> = {
   fileName: FileName.t,
-  setup: setupConfig => promise<'config>,
+  setup: setupConfig => promise<setupResult<'config>>,
   generate: generateConfig<'config> => promise<result<generated, string>>,
   cliHelpText: string,
   handleOtherCommand?: handleOtherCommandConfig<'config> => promise<unit>,
   onWatch?: onWatchConfig<'config> => promise<unit>,
 }
 
-let defaultSetup = async _ => ()
+let defaultSetup = async (_): setupResult<_> => SetupResult({config: ()})
 
 let make = (
   ~extensionPattern,
@@ -348,6 +374,12 @@ let cleanUpExtraFiles = (t, ~outputDir, ~sourceFileModuleName="*", ~keepThese=[]
   })
 }
 
+type customWatchedFile = {
+  glob: string,
+  regexp: RegExp.t,
+  onChange: watcherOnChangeConfig => promise<unit>
+}
+
 let runCli = async (t, ~args: option<array<string>>=?) => {
   let debugging = ref(false)
   let debug = msg =>
@@ -375,8 +407,17 @@ let runCli = async (t, ~args: option<array<string>>=?) => {
     open Process
     process->exitWithCode(0)
   | Some("generate") =>
-    let config = await t.setup({args: args})
     let watch = args->CliArgs.hasArg("--watch")
+    let SetupResult({config, ?additionalFileWatchers, ?additionalIgnorePatterns}) = await t.setup({
+      args: args,
+    })
+    let customWatchedFiles =
+      Option.getOr(additionalFileWatchers, [])
+      ->Array.map(w => {
+        glob: w.filePattern,
+        regexp: MicroMatch.mm.makeRe(w.filePattern),
+        onChange: w.onChange
+      })
     let pathToGeneratedDir = switch args->CliArgs.getArgValue(["--output"]) {
     | None =>
       panic(`--output must be set. It controls into what directory all generated files are emitted.`)
@@ -488,20 +529,29 @@ let runCli = async (t, ~args: option<array<string>>=?) => {
 
     if watch {
       await runGeneration()
-      Console.log(`Watching for changes in ${src}...`)
+      let watchedFiles =
+        Array.map(customWatchedFiles, f => f.glob)
+        ->Array.concat([`${src}/**/*.res`])
+      Console.log(`Watching the following patterns for file changes...`)
+      Array.forEach(watchedFiles, f => Console.log(`- ${f}`))
 
       let _theWatcher =
         Chokidar.watcher
         ->Chokidar.watch(
-          `${src}/**/*.res`,
+          watchedFiles,
           ~options={
-            ignored: ["**/node_modules", pathToGeneratedDir],
+            ignored:
+            Option.getOr(additionalIgnorePatterns, [])
+            ->Array.concat(["**/node_modules", pathToGeneratedDir]),
             ignoreInitial: true,
           },
         )
         ->Chokidar.Watcher.onChange(async file => {
           debug(`[changed]: ${file}`)
-          await runGeneration(~files=[file])
+          switch Array.find(customWatchedFiles, w => RegExp.test(w.regexp, file)) {
+            | Some({onChange}) => await onChange({ runGeneration, file })
+            | None => await runGeneration(~files=[file])
+          }
         })
         ->Chokidar.Watcher.onAdd(async file => {
           debug(`[added]: ${file}`)
@@ -534,8 +584,10 @@ let runCli = async (t, ~args: option<array<string>>=?) => {
   | Some(otherCommand) =>
     switch t.handleOtherCommand {
     | None => Console.log(t.cliHelpText)
-    | Some(handleOtherCommand) =>
-      await handleOtherCommand({args, command: otherCommand, config: await t.setup({args: args})})
+    | Some(handleOtherCommand) => {
+        let SetupResult({config}) =  await t.setup({args: args})
+        await handleOtherCommand({args, command: otherCommand, config})
+      }
     }
   | None => Console.log(t.cliHelpText)
   }

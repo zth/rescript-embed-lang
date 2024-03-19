@@ -139,8 +139,38 @@ type setupConfig = {
   args: CliArgs.t,
 }
 
+/** Args given to a custom file watcher when a change occurs */
+type watcherOnChangeConfig = {
+  /** The specific filepath that triggered the watcher */
+  file: string,
+  /** Trigger code generation.
+
+   `@param files: array<string>=?` - Optional list of files to do generation for. Passing nothing triggers a full generation.
+   */
+  runGeneration: (~files: array<string>=?) => promise<unit>,
+}
+
+/** A custom file watcher to register when running in watch mode */
+type watcher = {
+  /** Pattern to register with the watcher */
+  filePattern: string,
+  /** Callback to trigger when a matching file changes */
+  onChange: watcherOnChangeConfig => promise<unit>
+}
+
+@unboxed
+type setupResult<'config> =
+  | SetupResult({
+      /** Config object to provide to future calls */
+      config: 'config,
+      /** Additional files to keep an eye on in watch mode */
+      additionalFileWatchers?: array<watcher>,
+      /** Additional file patterns to ignore in watch mode */
+      additionalIgnorePatterns?: array<string>
+    })
+
 /** A default function for `setup`, that just returns nothing. */
-let defaultSetup: setupConfig => promise<unit>
+let defaultSetup: setupConfig => promise<setupResult<unit>>
 
 /** Configuration for the `onWatch` handler. */
 type onWatchConfig<'config> = {
@@ -173,7 +203,7 @@ type onWatchConfig<'config> = {
  */
 let make: (
   ~extensionPattern: extensionPattern,
-  ~setup: setupConfig => promise<'config>,
+  ~setup: setupConfig => promise<setupResult<'config>>,
   ~generate: generateConfig<'config> => promise<result<generated, string>>,
   ~cliHelpText: string,
   ~handleOtherCommand: handleOtherCommandConfig<'config> => promise<unit>=?,
