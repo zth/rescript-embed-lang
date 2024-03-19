@@ -533,13 +533,16 @@ let runCli = async (t, ~args: option<array<string>>=?) => {
 
     if watch {
       await runGeneration()
-      Console.log(`Watching for changes in ${src}...`)
+      let watchedFiles =
+        Array.map(customWatchedFiles, f => f.glob)
+        ->Array.concat([`${src}/**/*.res`])
+      Console.log(`Watching for changes in:`)
+      Array.forEach(watchedFiles, f => Console.log(`- ${f}`))
 
       let _theWatcher =
         Chokidar.watcher
         ->Chokidar.watch(
-          Array.map(customWatchedFiles, f => f.glob)
-          ->Array.concat([`${src}/**/*.res`]),
+          watchedFiles,
           ~options={
             ignored:
             Option.getOr(additionalIgnorePatterns, [])
