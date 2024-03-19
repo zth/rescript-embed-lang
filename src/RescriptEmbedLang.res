@@ -532,7 +532,7 @@ let runCli = async (t, ~args: option<array<string>>=?) => {
       let watchedFiles =
         Array.map(customWatchedFiles, f => f.glob)
         ->Array.concat([`${src}/**/*.res`])
-      Console.log(`Watching for changes in:`)
+      Console.log(`Watching the following patterns for file changes...`)
       Array.forEach(watchedFiles, f => Console.log(`- ${f}`))
 
       let _theWatcher =
