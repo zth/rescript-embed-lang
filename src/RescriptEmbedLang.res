@@ -50,9 +50,11 @@ module Glob = {
 }
 
 module MicroMatch = {
+  type mm = {
+    makeRe: string => RegExp.t
+  }
   @module("micromatch")
-  // TODO: Do we need to pass options in?
-  external makeRe: string => RegExp.t = "makeRe"
+  external mm: mm = "default"
 }
 
 module Hash = {
@@ -417,7 +419,7 @@ let runCli = async (t, ~args: option<array<string>>=?) => {
       Option.getOr(additionalFileWatchers, [])
       ->Array.map(w => {
         glob: w.filePattern,
-        regexp: MicroMatch.makeRe(w.filePattern),
+        regexp: MicroMatch.mm.makeRe(w.filePattern),
         onChange: w.onChange
       })
     let pathToGeneratedDir = switch args->CliArgs.getArgValue(["--output"]) {
