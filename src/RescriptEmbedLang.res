@@ -40,10 +40,7 @@ module Glob = {
   }
 
   @live
-  type glob = {
-    sync: (array<string>, opts) => array<string>,
-    convertPathToPattern: string => string
-  }
+  type glob = {sync: (array<string>, opts) => array<string>}
 
   @module("fast-glob")
   external glob: glob = "default"
@@ -175,9 +172,7 @@ type handleOtherCommandConfig<'config> = {
   config: 'config,
 }
 
-type setupConfig = {
-  args: CliArgs.t
-}
+type setupConfig = {args: CliArgs.t}
 
 type watcherOnChangeConfig = {
   file: string,
@@ -189,6 +184,7 @@ type watcher = {
   onChange: watcherOnChangeConfig => promise<unit>
 }
 
+@unboxed
 type setupResult<'config> =
   | SetupResult({
       config: 'config,

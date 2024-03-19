@@ -158,6 +158,7 @@ type watcher = {
   onChange: watcherOnChangeConfig => promise<unit>
 }
 
+@unboxed
 type setupResult<'config> =
   | SetupResult({
       /** Config object to provide to future calls */
