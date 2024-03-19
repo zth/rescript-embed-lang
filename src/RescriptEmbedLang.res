@@ -190,7 +190,8 @@ type watcher = {
 type setupResult<'config> =
   | SetupResult({
       config: 'config,
-      additionalFileWatchers?: array<watcher>
+      additionalFileWatchers?: array<watcher>,
+      additionalIgnorePatterns?: array<string>
     })
 
 type onWatchConfig<'config> = {
@@ -409,7 +410,7 @@ let runCli = async (t, ~args: option<array<string>>=?) => {
     process->exitWithCode(0)
   | Some("generate") =>
     let watch = args->CliArgs.hasArg("--watch")
-    let SetupResult({config, ?additionalFileWatchers}) = await t.setup({
+    let SetupResult({config, ?additionalFileWatchers, ?additionalIgnorePatterns}) = await t.setup({
       args: args,
     })
     let customWatchedFiles =
@@ -538,7 +539,9 @@ let runCli = async (t, ~args: option<array<string>>=?) => {
           Array.map(customWatchedFiles, f => f.glob)
           ->Array.concat([`${src}/**/*.res`]),
           ~options={
-            ignored: ["**/node_modules", pathToGeneratedDir],
+            ignored:
+            Option.getOr(additionalIgnorePatterns, [])
+            ->Array.concat(["**/node_modules", pathToGeneratedDir]),
             ignoreInitial: true,
           },
         )

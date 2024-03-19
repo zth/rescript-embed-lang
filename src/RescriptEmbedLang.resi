@@ -163,7 +163,9 @@ type setupResult<'config> =
       /** Config object to provide to future calls */
       config: 'config,
       /** Additional files to keep an eye on in watch mode */
-      additionalFileWatchers?: array<watcher>
+      additionalFileWatchers?: array<watcher>,
+      /** Additional file patterns to ignore in watch mode */
+      additionalIgnorePatterns?: array<string>
     })
 
 /** A default function for `setup`, that just returns nothing. */
