@@ -2,6 +2,8 @@
 
 ## master
 
+- Add `%sql`/`%sql.one`/`%sql.expectOne`/`%sql.many`/`%sql.execute` for [`pgtyped-rescript](https://github.com/zth/pgtyped-rescript).
+
 ## 0.4.0
 
 - Add `extract <filePath>` CLI command for easily extracting content + loc info from a file.
