@@ -2,6 +2,8 @@
 
 ## master
 
+## 0.5.0
+
 - Add `%sql`/`%sql.one`/`%sql.expectOne`/`%sql.many`/`%sql.execute` for [`pgtyped-rescript](https://github.com/zth/pgtyped-rescript).
 
 ## 0.4.0
