@@ -11,12 +11,7 @@ let queryNum = ref 1
 let extractSQLQueryName ~loc input =
   let pattern =
     Str.regexp
-      "/\\*[\t\n\
-       \r ]*@name[\t\n\
-       \r ]+\\([^\t\n\
-       \r *][^\t\n\
-       \r ]*\\)[\t\n\
-       \r ]*\\*\\/"
+      "/\\*[\t\n\r ]*@name[\t\n\r ]+\\([^\t\n\r *][^\t\n\r ]*\\)[\t\n\r ]"
   in
 
   try

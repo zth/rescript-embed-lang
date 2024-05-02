@@ -4,7 +4,9 @@ let findBooksRaw = %sql(`
 `)
 
 module FindBooksRaw = %sql(`
-  /* @name BooksByAuthorRaw */
+  /* 
+  @name BooksByAuthorRaw 
+  @param test*/
   select x from x
 `)
 

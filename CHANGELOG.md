@@ -2,6 +2,8 @@
 
 ## master
 
+- Fix regexp bug when extracting `@name` from `%sql`.
+
 ## 0.5.1
 
 - Allow unnamed `%sql` queries.
