@@ -25,6 +25,10 @@ let findBooksExpectOne = %sql.expectOne(`
   select x from x
 `)
 
+let findBooksNoName1 = %sql.expectOne(`
+  select x from x
+`)
+
 let findBooksMany = %sql.many(`
   /* @name BooksByAuthorMany */
   select x from x
@@ -32,5 +36,9 @@ let findBooksMany = %sql.many(`
 
 let findBooksExecute = %sql.execute(`
   /* @name BooksByAuthorExecute */
+  select x from x
+`)
+
+let findBooksNoName2 = %sql.expectOne(`
   select x from x
 `)

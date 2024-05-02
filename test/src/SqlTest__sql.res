@@ -17,3 +17,11 @@ module BooksByAuthorMany = {
 module BooksByAuthorExecute = {
   let execute = #execute
 }
+
+module Query1 = {
+  let expectOne = #expectOne
+}
+
+module Query2 = {
+  let expectOne = #expectOne
+}

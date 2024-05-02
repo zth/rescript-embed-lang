@@ -6,6 +6,8 @@ let capitalizeFirstLetter str =
     String.uppercase_ascii (String.sub str 0 1)
     ^ String.sub str 1 (String.length str - 1)
 
+let queryNum = ref 1
+
 let extractSQLQueryName ~loc input =
   let pattern =
     Str.regexp
@@ -20,18 +22,8 @@ let extractSQLQueryName ~loc input =
   try
     let _ = Str.search_forward pattern input 0 in
     let name = Str.matched_group 1 input in
-    name
-  with Not_found ->
-    Ppxlib.Location.raise_errorf ~loc
-      {|Could not find a comment with the query name.
-  Each SQL code block needs to be prepended with a comment
-  defining the query name.
-
-  Example:
-  let findUser = %%sql.many(`
-    /* @name findBooks */
-    select * from books
-  `)|}
+    Some name
+  with Not_found -> None
 
 let isSQLExtensionNode name =
   name = "sql" || String.starts_with ~prefix:"sql." name
@@ -49,7 +41,12 @@ let makeLident fileName ~queryName ~targetFn ~transformMode =
        (if String.ends_with fileName ~suffix:".res" then
           Filename.(chop_suffix (basename fileName) ".res")
         else Filename.(chop_suffix (basename fileName) ".resi"))
-       (capitalizeFirstLetter queryName)
+       (match queryName with
+       | Some queryName -> capitalizeFirstLetter queryName
+       | None ->
+         let num = !queryNum in
+         queryNum := num + 1;
+         "Query" ^ string_of_int num)
        (match (transformMode, targetFn) with
        | LetBinding, Some targetFn -> "." ^ targetFn
        | ModuleBinding, _ | LetBinding, None -> ""))
