@@ -2,6 +2,8 @@
 
 ## master
 
+## 0.5.1
+
 - Allow unnamed `%sql` queries.
 
 ## 0.5.0
