@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-const tagName = process.argv[3];
+const tagName = process.argv[2];
 const fs = require("fs");
 const path = require("path");
 
 const pkgJsonRaw = fs.readFileSync(
-  path.resolve(path.join(__dirname, "./package.json")),
+  path.resolve(path.join(__dirname, "./package-release.json")),
   "utf-8"
 );
 
@@ -22,6 +22,6 @@ if (tagName && tagName !== "beta") {
 }
 
 fs.writeFileSync(
-  path.resolve(path.join(process.argv[2], "package.json")),
+  path.resolve(path.join("release", "package.json")),
   JSON.stringify(pkgJson, null, 2)
 );
