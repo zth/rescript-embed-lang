@@ -101,6 +101,8 @@ jobs:
           node-version: 16
         env:
           CI: true
+      - name: Install
+        run: npm i
       - name: Build res
         run: npm run build
       - name: Install esy
