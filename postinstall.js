@@ -70,27 +70,26 @@ function copyPlatformBinaries(platform) {
   /**
    * Copy the PPX
    */
-  fs.copyFileSync(
-    path.join(__dirname, "ppx-" + platform),
-    path.join(__dirname, "ppx")
-  );
-  fs.chmodSync(path.join(__dirname, "ppx"), 0777);
+  const ppxFinalFilename = platform === "windows-latest" ? "ppx.exe" : "ppx";
+  const ppxFinalPath = path.join(__dirname, ppxFinalFilename);
 
-  // Windows seems to need an .exe file as well.
-  if (platform === "windows-latest") {
-    fs.copyFileSync(
-      path.join(__dirname, "ppx-" + platform),
-      path.join(__dirname, "ppx.exe")
-    );
-    fs.chmodSync(path.join(__dirname, "ppx.exe"), 0777);
+  if (!fs.existsSync(ppxFinalPath)) {
+    fs.copyFileSync(path.join(__dirname, "ppx-" + platform), ppxFinalPath);
+  }
+  fs.chmodSync(ppxFinalPath, 0o777);
+}
+
+function unlinkIfNotExistsSync(path) {
+  if (fs.existsSync(path)) {
+    fs.unlinkSync(path);
   }
 }
 
 function removeInitialBinaries() {
-  fs.unlinkSync(path.join(__dirname, "ppx-macos-arm64"));
-  fs.unlinkSync(path.join(__dirname, "ppx-macos-latest"));
-  fs.unlinkSync(path.join(__dirname, "ppx-windows-latest"));
-  fs.unlinkSync(path.join(__dirname, "ppx-linux"));
+  unlinkIfNotExistsSync(path.join(__dirname, "ppx-macos-arm64"));
+  unlinkIfNotExistsSync(path.join(__dirname, "ppx-macos-latest"));
+  unlinkIfNotExistsSync(path.join(__dirname, "ppx-windows-latest"));
+  unlinkIfNotExistsSync(path.join(__dirname, "ppx-linux"));
 }
 
 switch (platform) {
