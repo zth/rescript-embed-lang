@@ -15,9 +15,6 @@ jobs:
 
     name: Build PPX for release
     runs-on: ${{ matrix.platform }}
-    defaults:
-      run:
-        working-directory: packages/rescript-relay/rescript-relay-ppx
     container:
       image: alexfedoseev/alpine-node-yarn-esy:0.0.9
     steps:
@@ -104,6 +101,8 @@ jobs:
           node-version: 16
         env:
           CI: true
+      - name: Install
+        run: npm i
       - name: Build res
         run: npm run build
       - name: Install esy
