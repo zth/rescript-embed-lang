@@ -2,7 +2,9 @@
 
 ## master
 
-- Fix regexp bug when extracting `@name` from `%sql`.
+## 0.5.2
+
+- Fix correct built binaries.
 
 ## 0.5.1
 
