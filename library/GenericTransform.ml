@@ -1,7 +1,4 @@
 open Ppxlib
-open Ast_helper
-open Utils
-
 let isGeneratedExtensionNode name = String.starts_with ~prefix:"generated." name
 
 let extractGeneratedExtensionNode str =

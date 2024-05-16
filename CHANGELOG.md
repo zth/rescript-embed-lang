@@ -2,6 +2,10 @@
 
 ## master
 
+## 0.5.3
+
+- Fix generated module name casing when used inside file whose name is lowercased for PgTypedSQL
+
 ## 0.5.2
 
 - Fix correct built binaries.

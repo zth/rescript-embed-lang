@@ -33,9 +33,12 @@ type transformMode = LetBinding | ModuleBinding
 let makeLident fileName ~queryName ~targetFn ~transformMode =
   Longident.parse
     (Printf.sprintf "%s__sql.%s%s"
-       (if String.ends_with fileName ~suffix:".res" then
-          Filename.(chop_suffix (basename fileName) ".res")
-        else Filename.(chop_suffix (basename fileName) ".resi"))
+       (let moduleName =
+          if String.ends_with fileName ~suffix:".res" then
+            Filename.(chop_suffix (basename fileName) ".res")
+          else Filename.(chop_suffix (basename fileName) ".resi")
+        in
+        capitalizeFirstLetter moduleName)
        (match queryName with
        | Some queryName -> capitalizeFirstLetter queryName
        | None ->
