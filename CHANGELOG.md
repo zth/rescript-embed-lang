@@ -2,6 +2,10 @@
 
 ## master
 
+## 0.5.4
+
+- Use `@rescript/tools` to extract embeds in a more robust way.
+
 ## 0.5.3
 
 - Fix generated module name casing when used inside file whose name is lowercased for PgTypedSQL
