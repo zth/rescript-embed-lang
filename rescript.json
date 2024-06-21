@@ -15,6 +15,6 @@
     "in-source": true
   },
   "suffix": ".mjs",
-  "bs-dependencies": ["@rescript/core", "rescript-nodejs"],
+  "bs-dependencies": ["@rescript/core", "rescript-nodejs", "@rescript/tools"],
   "bsc-flags": ["-open RescriptCore"]
 }
