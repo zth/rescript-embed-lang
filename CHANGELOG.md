@@ -2,6 +2,10 @@
 
 ## master
 
+## 0.5.5
+
+- Fix small mistake in generic generators.
+
 ## 0.5.4
 
 - Use `@rescript/tools` to extract embeds in a more robust way.

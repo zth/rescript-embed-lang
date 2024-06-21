@@ -233,7 +233,7 @@ let generateFileForEmbeds = async (
   try {
     let ext = t.fileName->FileName.getFullExtension
     let embeds = await path->Internal.findContentInFile([ext])
-    if embeds->Array.find(embed => embed.extensionName === ext)->Option.isSome {
+    if embeds->Array.find(embed => "%" ++ embed.extensionName === ext)->Option.isSome {
       fileModulesWithContent->Set.add(path->Path.basenameExt(".res"))
       let generatedContent = await Promise.all(
         embeds->Array.mapWithIndex(async (content, index) => {
