@@ -80,104 +80,33 @@ type pushingContent = {
   end: loc,
 }
 
+type extractedContent = {
+  extensionName: string,
+  contents: string,
+  loc: {"start": {"line": int, "character": int}, "end": {"line": int, "character": int}},
+}
+
+external jsonToExtractedContent: JSON.t => array<extractedContent> = "%identity"
+
 let findContentInFile = async (filePath, tags) => {
-  let tags = tags->Array.map(t => `${t}(\``)
-  let foundContent = []
-  let lineCount = ref(0)
-  let inComment = ref(false)
-  let pushingContent = ref(None)
-
-  switch await filePath->ReadFile.readLines(line => {
-    let currentLine = lineCount.contents
-    lineCount := lineCount.contents + 1
-
-    let break = ref(false)
-
-    let trimmedLine = line->String.trim
-    let isSingleLineComment = trimmedLine->String.startsWith("//")
-
-    if inComment.contents && line->String.includes(commentClose) {
-      // Detect comment end
-      inComment := false
-      break := true
-    } else if inComment.contents {
-      // Break if in a comment
-      break := true
-    } else if (
-      !inComment.contents &&
-      (trimmedLine->String.startsWith(docCommentOpen) ||
-        trimmedLine->String.startsWith(commentOpen))
-    ) {
-      // Break if comment starting
-      // TODO: Nested comments?
-      inComment := true
-      break := true
-    }
-
-    if isSingleLineComment {
-      break := true
-    }
-
-    if !break.contents {
-      switch pushingContent.contents {
-      | Some(c) =>
-        if line->String.includes(ending) {
-          switch line->String.split(ending) {
-          | [before, _after] =>
-            let lastLine = line->String.split(ending)->Array.getUnsafe(0)
-            c.content->Array.push(lastLine)
-            foundContent->Array.push({
-              ...c,
-              end: {
-                line: currentLine,
-                col: before->String.length,
-              },
-            })
-          | _ => ()
-          }
-          pushingContent := None
-        } else {
-          c.content->Array.push(line)
-        }
-      | None =>
-        let tagOnLine = tags->Array.find(tag => line->String.includes(tag))
-        switch tagOnLine {
-        | None => ()
-        | Some(tagOnLine) =>
-          switch line->String.split(tagOnLine) {
-          | [before, after] =>
-            let startPos = {
-              line: currentLine,
-              col: before->String.length + tagOnLine->String.length,
-            }
-            pushingContent :=
-              Some({
-                tag: tagOnLine->String.replace("(`", ""),
-                content: [after],
-                start: startPos,
-                end: startPos,
-              })
-          | _ => ()
-          }
-        }
-      }
-    }
-  }) {
-  | Ok()
-  | Error() => foundContent
-  | exception Exn.Error(_) => foundContent
+  switch NodeJs.ChildProcess.execFileSync(
+    RescriptTools.getBinaryPath(),
+    [
+      "extract-embedded",
+      tags->Array.map(t => t->String.sliceToEnd(~start=1))->Array.joinWith(","),
+      filePath,
+    ],
+  )
+  ->NodeJs.Buffer.toString
+  ->JSON.parseExn
+  ->jsonToExtractedContent {
+  | exception Exn.Error(e) =>
+    Console.error(e)
+    panic("Failed")
+  | extractedContent => extractedContent
   }
 }
 
 let extractContentInFile = async (filePath, tags) => {
-  let content = await findContentInFile(filePath, tags)
-
-  content->Array.map(c =>
-    {
-      "content": c.content->Array.joinWith("\n"),
-      "start": c.start,
-      "end": c.end,
-      "tag": c.tag,
-    }
-  )
+  await findContentInFile(filePath, tags)
 }

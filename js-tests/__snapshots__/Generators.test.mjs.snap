@@ -3,303 +3,7 @@
 exports[`findContentInFile finds content 1`] = `
 [
   {
-    "content": [
-      "",
-      "  # @name TestQuery",
-      "  select User {",
-      "    name",
-      "  } filter .name = 'test'",
-      "",
-    ],
-    "end": {
-      "col": 0,
-      "line": 5,
-    },
-    "start": {
-      "col": 21,
-      "line": 0,
-    },
-    "tag": "%edgeql",
-  },
-  {
-    "content": [
-      "",
-      "  display: flex;",
-      "",
-    ],
-    "end": {
-      "col": 0,
-      "line": 18,
-    },
-    "start": {
-      "col": 20,
-      "line": 16,
-    },
-    "tag": "%css",
-  },
-]
-`;
-
-exports[`findContentInFile finds content 2 1`] = `
-[
-  {
-    "content": [
-      "",
-      "    # @name allMovies",
-      "    select Movie {",
-      "      id,",
-      "      title",
-      "      actors: {",
-      "          id,",
-      "          name,",
-      "          numberOfPets := count(.pets)",
-      "      }",
-      "    } order by .title",
-      "    ",
-    ],
-    "end": {
-      "col": 4,
-      "line": 12,
-    },
-    "start": {
-      "col": 23,
-      "line": 1,
-    },
-    "tag": "%edgeql",
-  },
-  {
-    "content": [
-      "",
-      "    # @name allMoviesNested",
-      "    select Movie {",
-      "      id,",
-      "      title,",
-      "      actors: {",
-      "          id,",
-      "          name,",
-      "          numberOfPets := count(.pets)",
-      "      }",
-      "    } order by .title",
-      "    ",
-    ],
-    "end": {
-      "col": 4,
-      "line": 36,
-    },
-    "start": {
-      "col": 23,
-      "line": 25,
-    },
-    "tag": "%edgeql",
-  },
-  {
-    "content": [
-      "",
-      "    # @name movieByTitle",
-      "    select Movie {",
-      "      id,",
-      "      title,",
-      "      actors: {",
-      "          id,",
-      "          name,",
-      "          numberOfPets := count(.pets),",
-      "          typesDump: {",
-      "            date,",
-      "            localDateTime,",
-      "            localDate,",
-      "            relativeDuration,",
-      "            duration,",
-      "            dateDuration,",
-      "            localTime,",
-      "            json",
-      "          }",
-      "      }",
-      "    } ",
-      "      filter .title = <str>$title",
-      "      limit 1",
-      "    ",
-    ],
-    "end": {
-      "col": 4,
-      "line": 63,
-    },
-    "start": {
-      "col": 23,
-      "line": 40,
-    },
-    "tag": "%edgeql",
-  },
-  {
-    "content": [
-      "",
-      "  # @name AddActor",
-      "  insert Person {",
-      "    name := <str>$name",
-      "  }",
-      "",
-    ],
-    "end": {
-      "col": 0,
-      "line": 75,
-    },
-    "start": {
-      "col": 27,
-      "line": 70,
-    },
-    "tag": "%edgeql",
-  },
-  {
-    "content": [
-      "",
-      "  # @name RemoveActor",
-      "  delete Person filter .id = <uuid>$id",
-      "",
-    ],
-    "end": {
-      "col": 0,
-      "line": 82,
-    },
-    "start": {
-      "col": 30,
-      "line": 79,
-    },
-    "tag": "%edgeql",
-  },
-]
-`;
-
-exports[`findContentInFile finds content 3 1`] = `
-[
-  {
-    "content": [
-      "",
-      "    # @name allMovies",
-      "    select Movie {",
-      "      id,",
-      "      title",
-      "      actors: {",
-      "          id,",
-      "          name,",
-      "          numberOfPets := count(.pets)",
-      "      }",
-      "    } order by .title",
-      "    ",
-    ],
-    "end": {
-      "col": 4,
-      "line": 12,
-    },
-    "start": {
-      "col": 23,
-      "line": 1,
-    },
-    "tag": "%edgeql",
-  },
-  {
-    "content": [
-      "",
-      "    # @name allMoviesNested",
-      "    select Movie {",
-      "      id,",
-      "      title,",
-      "      actors: {",
-      "          id,",
-      "          name,",
-      "          numberOfPets := count(.pets)",
-      "      }",
-      "    } order by .title",
-      "    ",
-    ],
-    "end": {
-      "col": 4,
-      "line": 36,
-    },
-    "start": {
-      "col": 23,
-      "line": 25,
-    },
-    "tag": "%edgeql",
-  },
-  {
-    "content": [
-      "",
-      "    # @name movieByTitle",
-      "    select Movie {",
-      "      id,",
-      "      title,",
-      "      actors: {",
-      "          id,",
-      "          name,",
-      "          numberOfPets := count(.pets),",
-      "          typesDump: {",
-      "            date,",
-      "            localDateTime,",
-      "            localDate,",
-      "            relativeDuration,",
-      "            duration,",
-      "            dateDuration,",
-      "            localTime,",
-      "            json",
-      "          }",
-      "      }",
-      "    } ",
-      "      filter .title = <str>$title",
-      "      limit 1",
-      "    ",
-    ],
-    "end": {
-      "col": 4,
-      "line": 63,
-    },
-    "start": {
-      "col": 23,
-      "line": 40,
-    },
-    "tag": "%edgeql",
-  },
-  {
-    "content": [
-      "",
-      "  # @name AddActor",
-      "  insert Person {",
-      "    name := <str>$name",
-      "  }",
-      "",
-    ],
-    "end": {
-      "col": 0,
-      "line": 75,
-    },
-    "start": {
-      "col": 27,
-      "line": 70,
-    },
-    "tag": "%edgeql",
-  },
-  {
-    "content": [
-      "",
-      "  # @name RemoveActor",
-      "  delete Person filter .id = <uuid>$id",
-      "",
-    ],
-    "end": {
-      "col": 0,
-      "line": 82,
-    },
-    "start": {
-      "col": 30,
-      "line": 79,
-    },
-    "tag": "%edgeql",
-  },
-]
-`;
-
-exports[`extractContentInFile extracts content 1`] = `
-[
-  {
-    "content": 
+    "contents": 
 "
   # @name TestQuery
   select User {
@@ -307,31 +11,355 @@ exports[`extractContentInFile extracts content 1`] = `
   } filter .name = 'test'
 "
 ,
-    "end": {
-      "col": 0,
-      "line": 5,
+    "extensionName": "edgeql",
+    "loc": {
+      "end": {
+        "character": 1,
+        "line": 5,
+      },
+      "start": {
+        "character": 20,
+        "line": 0,
+      },
     },
-    "start": {
-      "col": 21,
-      "line": 0,
-    },
-    "tag": "%edgeql",
   },
   {
-    "content": 
+    "contents": 
 "
   display: flex;
 "
 ,
-    "end": {
-      "col": 0,
-      "line": 18,
+    "extensionName": "css",
+    "loc": {
+      "end": {
+        "character": 1,
+        "line": 18,
+      },
+      "start": {
+        "character": 19,
+        "line": 16,
+      },
     },
-    "start": {
-      "col": 20,
-      "line": 16,
+  },
+]
+`;
+
+exports[`findContentInFile finds content 2 1`] = `
+[
+  {
+    "contents": 
+"
+    # @name allMovies
+    select Movie {
+      id,
+      title
+      actors: {
+          id,
+          name,
+          numberOfPets := count(.pets)
+      }
+    } order by .title
+    "
+,
+    "extensionName": "edgeql",
+    "loc": {
+      "end": {
+        "character": 5,
+        "line": 12,
+      },
+      "start": {
+        "character": 22,
+        "line": 1,
+      },
     },
-    "tag": "%css",
+  },
+  {
+    "contents": 
+"
+    # @name allMoviesNested
+    select Movie {
+      id,
+      title,
+      actors: {
+          id,
+          name,
+          numberOfPets := count(.pets)
+      }
+    } order by .title
+    "
+,
+    "extensionName": "edgeql",
+    "loc": {
+      "end": {
+        "character": 5,
+        "line": 36,
+      },
+      "start": {
+        "character": 22,
+        "line": 25,
+      },
+    },
+  },
+  {
+    "contents": 
+"
+    # @name movieByTitle
+    select Movie {
+      id,
+      title,
+      actors: {
+          id,
+          name,
+          numberOfPets := count(.pets),
+          typesDump: {
+            date,
+            localDateTime,
+            localDate,
+            relativeDuration,
+            duration,
+            dateDuration,
+            localTime,
+            json
+          }
+      }
+    } 
+      filter .title = <str>$title
+      limit 1
+    "
+,
+    "extensionName": "edgeql",
+    "loc": {
+      "end": {
+        "character": 5,
+        "line": 63,
+      },
+      "start": {
+        "character": 22,
+        "line": 40,
+      },
+    },
+  },
+  {
+    "contents": 
+"
+  # @name AddActor
+  insert Person {
+    name := <str>$name
+  }
+"
+,
+    "extensionName": "edgeql",
+    "loc": {
+      "end": {
+        "character": 1,
+        "line": 75,
+      },
+      "start": {
+        "character": 26,
+        "line": 70,
+      },
+    },
+  },
+  {
+    "contents": 
+"
+  # @name RemoveActor
+  delete Person filter .id = <uuid>$id
+"
+,
+    "extensionName": "edgeql",
+    "loc": {
+      "end": {
+        "character": 1,
+        "line": 82,
+      },
+      "start": {
+        "character": 29,
+        "line": 79,
+      },
+    },
+  },
+]
+`;
+
+exports[`findContentInFile finds content 3 1`] = `
+[
+  {
+    "contents": 
+"
+    # @name allMovies
+    select Movie {
+      id,
+      title
+      actors: {
+          id,
+          name,
+          numberOfPets := count(.pets)
+      }
+    } order by .title
+    "
+,
+    "extensionName": "edgeql",
+    "loc": {
+      "end": {
+        "character": 5,
+        "line": 12,
+      },
+      "start": {
+        "character": 22,
+        "line": 1,
+      },
+    },
+  },
+  {
+    "contents": 
+"
+    # @name allMoviesNested
+    select Movie {
+      id,
+      title,
+      actors: {
+          id,
+          name,
+          numberOfPets := count(.pets)
+      }
+    } order by .title
+    "
+,
+    "extensionName": "edgeql",
+    "loc": {
+      "end": {
+        "character": 5,
+        "line": 36,
+      },
+      "start": {
+        "character": 22,
+        "line": 25,
+      },
+    },
+  },
+  {
+    "contents": 
+"
+    # @name movieByTitle
+    select Movie {
+      id,
+      title,
+      actors: {
+          id,
+          name,
+          numberOfPets := count(.pets),
+          typesDump: {
+            date,
+            localDateTime,
+            localDate,
+            relativeDuration,
+            duration,
+            dateDuration,
+            localTime,
+            json
+          }
+      }
+    } 
+      filter .title = <str>$title
+      limit 1
+    "
+,
+    "extensionName": "edgeql",
+    "loc": {
+      "end": {
+        "character": 5,
+        "line": 63,
+      },
+      "start": {
+        "character": 22,
+        "line": 40,
+      },
+    },
+  },
+  {
+    "contents": 
+"
+  # @name AddActor
+  insert Person {
+    name := <str>$name
+  }
+"
+,
+    "extensionName": "edgeql",
+    "loc": {
+      "end": {
+        "character": 1,
+        "line": 75,
+      },
+      "start": {
+        "character": 26,
+        "line": 70,
+      },
+    },
+  },
+  {
+    "contents": 
+"
+  # @name RemoveActor
+  delete Person filter .id = <uuid>$id
+"
+,
+    "extensionName": "edgeql",
+    "loc": {
+      "end": {
+        "character": 1,
+        "line": 82,
+      },
+      "start": {
+        "character": 29,
+        "line": 79,
+      },
+    },
+  },
+]
+`;
+
+exports[`extractContentInFile extracts content 1`] = `
+[
+  {
+    "contents": 
+"
+  # @name TestQuery
+  select User {
+    name
+  } filter .name = 'test'
+"
+,
+    "extensionName": "edgeql",
+    "loc": {
+      "end": {
+        "character": 1,
+        "line": 5,
+      },
+      "start": {
+        "character": 20,
+        "line": 0,
+      },
+    },
+  },
+  {
+    "contents": 
+"
+  display: flex;
+"
+,
+    "extensionName": "css",
+    "loc": {
+      "end": {
+        "character": 1,
+        "line": 18,
+      },
+      "start": {
+        "character": 19,
+        "line": 16,
+      },
+    },
   },
 ]
 `;

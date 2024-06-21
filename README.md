@@ -124,13 +124,13 @@ The formula for what code to refer to when transforming is be: `<filename>__<gen
 
 > Remember, the actual codegen creating the module we're referring to here from the source `css` text isn't part of this package. This package is just about making it simple to tie together generated things with its source in ReScript.
 
-### SQL (WIP)
+### SQL
 
-This is not finished yet, but will provide embedding for Postgres SQL via [pgtyped-rescript](https://github.com/zth/pgtyped-rescript).
+Embedding for Postgres SQL via [pgtyped-rescript](https://github.com/zth/pgtyped-rescript).
 
 ```rescript
 // Movies.res
-let findMovieQuery = %sql(`
+let findMovieQuery = %sql.one(`
   /* @name findMovieQuery */
   select id, title from movies where id = :id
 `)
@@ -140,7 +140,7 @@ Is transformed into:
 
 ```rescript
 // Movies.res
-let findMovieQuery = Movies__sql.FindMovieQuery.query
+let findMovieQuery = Movies__sql.FindMovieQuery.one
 ```
 
 ## Adding more language embeds
