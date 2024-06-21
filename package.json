@@ -12,6 +12,9 @@
     "@rescript/core": ">= 0.6.0",
     "rescript": ">=11.0.0"
   },
+  "optionalDependencies": {
+    "@rescript/tools": ">= 0.5.4"
+  },
   "scripts": {
     "build": "rescript",
     "test": "bun test js-tests"
