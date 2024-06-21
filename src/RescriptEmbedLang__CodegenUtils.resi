@@ -17,4 +17,5 @@ type safeName =
  toReScriptSafeName("propName") // Safe("propName")
  ```
  */
+@live
 let toReScriptSafeName: string => safeName

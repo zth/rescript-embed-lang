@@ -11,6 +11,7 @@ module CliArgs: {
   let watching = args->CliArgs.hasArg("--watch") // true
   ```
    */
+  @live
   let hasArg: (t, string) => bool
 
   /** Returns the _value_ of an argument, if any. The value is
@@ -25,6 +26,7 @@ module CliArgs: {
   // CLI invoked with: `generate --user --password`
   args->CliArgs.getArgValue("--user") // None
   ```*/
+  @live
   let getArgValue: (t, array<string>) => option<string>
 }
 
@@ -140,6 +142,7 @@ type setupConfig = {
 }
 
 /** A default function for `setup`, that just returns nothing. */
+@live
 let defaultSetup: setupConfig => promise<unit>
 
 /** Configuration for the `onWatch` handler. */
@@ -171,6 +174,7 @@ type onWatchConfig<'config> = {
 
 `@returns` the embed itself, that can then be used with `runCli` to start a CLI.
  */
+@live
 let make: (
   ~extensionPattern: extensionPattern,
   ~setup: setupConfig => promise<'config>,
@@ -191,4 +195,5 @@ let make: (
 await RescriptEmbedLang.runCli(embed)
 ```
  */
+@live
 let runCli: (t<'a>, ~args: array<string>=?) => promise<unit>

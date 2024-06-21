@@ -50,6 +50,7 @@ let removeIllegalCharacters = (input: string) => {
   result.contents
 }
 
+@live
 type safeName = Safe(string) | NeedsAnnotation({actualName: string, safeName: string})
 
 let toReScriptSafeName = (ident: string) => {

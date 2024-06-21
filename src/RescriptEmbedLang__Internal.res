@@ -2,6 +2,7 @@ module ReadFile = {
   @module("fs")
   external createReadStream: string => 'stream = "createReadStream"
 
+  @live
   type createInterfaceOptions<'stream> = {
     input: 'stream,
     crlfDelay: int,
@@ -36,36 +37,9 @@ module ReadFile = {
       })
     })
   }
-
-  let readLines = (filePath, callback) => {
-    let readStream = createReadStream(filePath)
-
-    let rl = createInterface({
-      input: readStream,
-      crlfDelay: %raw("Infinity"),
-    })
-
-    Promise.make((resolve, _reject) => {
-      let _ = rl->onLine((line: string) => {
-        callback(line)
-      })
-
-      rl->onClose(_ => {
-        resolve(Ok())
-      })
-
-      rl->onError(_err => {
-        resolve(Error())
-      })
-    })
-  }
 }
 
-let commentOpen = "/*"
-let docCommentOpen = "/**"
-let commentClose = "*/"
-let ending = "`)" // TODO: Regexp
-
+@live
 type loc = {
   /** 0 based */
   line: int,
@@ -73,13 +47,7 @@ type loc = {
   col: int,
 }
 
-type pushingContent = {
-  tag: string,
-  content: array<string>,
-  start: loc,
-  end: loc,
-}
-
+@live
 type extractedContent = {
   extensionName: string,
   contents: string,

@@ -25,6 +25,7 @@ module Chokidar = {
   @module("chokidar") @val
   external watcher: t = "default"
 
+  @live
   type watchOptions = {ignored?: array<string>, ignoreInitial?: bool}
 
   @send
@@ -57,6 +58,7 @@ module Hash = {
 
 let toFileBaseName = fileName => Path.basenameExt(fileName, ".res")
 
+@live
 type extensionPattern = Generic(string) | FirstClass(string)
 
 let writeIfHasChanges = (path, content) => {
@@ -76,21 +78,9 @@ let writeIfHasChanges = (path, content) => {
 
 // Configure pattern
 module FileName = {
-  type t = {
-    pattern: extensionPattern,
-    regExp: RegExp.t,
-  }
+  type t = {pattern: extensionPattern}
   let make = (pattern: extensionPattern) => {
-    pattern,
-    regExp: switch pattern {
-    | Generic(extension) =>
-      RegExp.fromStringWithFlags(
-        "(?<!\s*\/\/.*)%generated\\." ++ extension ++ "\\(`([^`]+)`\\)",
-        ~flags="g",
-      )
-    | FirstClass(extension) =>
-      RegExp.fromStringWithFlags("(?<!\s*\/\/.*)%" ++ extension ++ "\\(`([^`]+)`\\)", ~flags="g")
-    },
+    pattern: pattern,
   }
   let getExtensionName = t =>
     switch t {
@@ -126,26 +116,30 @@ module CliArgs = {
   }
 }
 
-@tag("kind")
+@tag("kind") @live
 type generated =
   | WithModuleName({moduleName: string, content: string})
   | NoModuleName({content: string})
 
+@live
 type emitFileReturn = {
   path: string,
   fileName: string,
 }
 
+@live
 type loc = {
   line: int,
   col: int,
 }
 
+@live
 type fileLocation = {
   start: loc,
   end: loc,
 }
 
+@live
 type generateConfig<'config> = {
   location: fileLocation,
   path: string,
@@ -158,14 +152,17 @@ type generateConfig<'config> = {
   ) => emitFileReturn,
 }
 
+@live
 type handleOtherCommandConfig<'config> = {
   command: string,
   args: array<string>,
   config: 'config,
 }
 
+@live
 type setupConfig = {args: CliArgs.t}
 
+@live
 type onWatchConfig<'config> = {
   config: 'config,
   runGeneration: (~files: array<string>=?) => promise<unit>,
@@ -255,7 +252,7 @@ let generateFileForEmbeds = async (
               },
             },
             config,
-            content: content.content->Array.joinWith("\n"),
+            content: content.contents,
             emitExtraFile: (~extension, ~content, ~moduleName) => {
               debug(`[emit] Emitting extra file with extension .${extension}`)
               let fileName = toFileBaseName(path)
@@ -529,6 +526,8 @@ let runCli = async (t, ~args: option<array<string>>=?) => {
             cleanUpExtraFiles(t, ~outputDir)
           }
         })
+
+      ignore(_theWatcher)
 
       switch t.onWatch {
       | None => ()
