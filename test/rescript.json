@@ -1,6 +1,5 @@
 {
   "name": "test",
-  "uncurried": true,
   "sources": [
     {
       "dir": "src"
@@ -11,9 +10,7 @@
     "in-source": true
   },
   "suffix": ".mjs",
-  "bs-dependencies": ["@rescript/core"],
-  "bsc-flags": ["-open RescriptCore"],
   "ppx-flags": [
-    ["../_build/default/bin/RescriptEmbedLang.exe", "-enable-generic-transform"]
+    ["rescript-embed-lang/ppx", "-enable-generic-transform"]
   ]
 }

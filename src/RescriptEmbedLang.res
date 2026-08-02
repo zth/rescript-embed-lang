@@ -69,7 +69,7 @@ let writeIfHasChanges = (path, content) => {
         Fs.writeFileSync(path, NodeJs.Buffer.fromString(content))
       }
     } catch {
-    | Exn.Error(_) => ()
+    | JsExn(_) => ()
     }
   } else {
     Fs.writeFileSync(path, NodeJs.Buffer.fromString(content))
@@ -217,7 +217,7 @@ let getFileSourceHash = async filePath => {
   switch await Internal.ReadFile.readFirstLine(filePath) {
   | Ok(firstLine) => firstLine->String.split("// @sourceHash ")->Array.get(1)
   | Error() => None
-  | exception Exn.Error(_) => None
+  | exception JsExn(_) => None
   }
 }
 
@@ -283,8 +283,8 @@ let generateFileForEmbeds = async (
           | Error(msg) =>
             Console.error(msg)
             None
-          | exception Exn.Error(err) =>
-            Console.error(err->Exn.message)
+          | exception JsExn(err) =>
+            Console.error(err->JsExn.message)
             None
           }
         }),
@@ -296,10 +296,10 @@ let generateFileForEmbeds = async (
           switch c {
           | None => ""
           | Some((moduleName, contents, _)) =>
-            `module ${moduleName} = {\n  ${contents->String.split("\n")->Array.joinWith("\n  ")}\n}`
+            `module ${moduleName} = {\n  ${contents->String.split("\n")->Array.join("\n  ")}\n}`
           }
         })
-        ->Array.joinWith("\n\n")
+        ->Array.join("\n\n")
 
       let extraFiles =
         generatedContent
@@ -332,7 +332,7 @@ let generateFileForEmbeds = async (
       })
     }
   } catch {
-  | Exn.Error(e) =>
+  | JsExn(e) =>
     Console.log(`${colorRed("Error in file")} ${Path.basename(path)}:`)
     Console.error(e)
   }
@@ -357,7 +357,7 @@ let runCli = async (t, ~args: option<array<string>>=?) => {
     if debugging.contents {
       Console.debug(msg)
     }
-  let args = args->Option.getOr(argv->Array.sliceToEnd(~start=2)->Array.keepSome)
+  let args = args->Option.getOr(argv->Array.slice(~start=2)->Array.keepSome)
   debugging := args->CliArgs.hasArg("--debug")
 
   switch args[0] {
@@ -367,8 +367,8 @@ let runCli = async (t, ~args: option<array<string>>=?) => {
       Console.error("You must supply a file path as the second argument to the command \"extract\"")
       open Process
       process->exitWithCode(1)
-      // Dummy raise because exit above should return `'any` but doesn't.
-      raise(Not_found)
+      // Dummy throw because exit above should return `'any` but doesn't.
+      throw(Not_found)
     | Some(p) => p
     }
     let ext = t.fileName->FileName.getFullExtension
@@ -399,7 +399,7 @@ let runCli = async (t, ~args: option<array<string>>=?) => {
       // Try to access the directory
       await Fs.access(pathToGeneratedDir)
     } catch {
-    | Exn.Error(_) =>
+    | JsExn(_) =>
       Console.log(`Output directory did not exist. Creating now...`)
       await Fs.mkdirWith(pathToGeneratedDir, {recursive: true})
     }
@@ -440,7 +440,7 @@ let runCli = async (t, ~args: option<array<string>>=?) => {
           Console.log(
             `Generated:\n  ${generatedFiles
               ->Array.map(((name, _)) => name)
-              ->Array.joinWith("\n  ")}`,
+              ->Array.join("\n  ")}`,
           )
         }
 

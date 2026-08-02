@@ -56,19 +56,38 @@ type extractedContent = {
 
 external jsonToExtractedContent: JSON.t => array<extractedContent> = "%identity"
 
+module NodeModule = {
+  type require
+
+  @module("node:module")
+  external createRequire: string => require = "createRequire"
+
+  @send
+  external resolve: (require, string) => string = "resolve"
+}
+
+let rescriptToolsCliPath = {
+  let importMetaUrl: string = %raw("import.meta.url")
+  let require = NodeModule.createRequire(importMetaUrl)
+  let rescriptPackageDir = require->NodeModule.resolve("rescript/package.json")->NodeJs.Path.dirname
+
+  NodeJs.Path.join([rescriptPackageDir, "cli", "rescript-tools.js"])
+}
+
 let findContentInFile = async (filePath, tags) => {
   switch NodeJs.ChildProcess.execFileSync(
-    RescriptTools.getBinaryPath(),
+    NodeJs.Process.process->NodeJs.Process.execPath,
     [
+      rescriptToolsCliPath,
       "extract-embedded",
-      tags->Array.map(t => t->String.sliceToEnd(~start=1))->Array.joinWith(","),
+      tags->Array.map(t => t->String.slice(~start=1))->Array.join(","),
       filePath,
     ],
   )
   ->NodeJs.Buffer.toString
-  ->JSON.parseExn
+  ->JSON.parseOrThrow
   ->jsonToExtractedContent {
-  | exception Exn.Error(e) =>
+  | exception JsExn(e) =>
     Console.error(e)
     panic("Failed")
   | extractedContent => extractedContent

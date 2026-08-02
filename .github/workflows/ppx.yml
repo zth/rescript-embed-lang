@@ -77,6 +77,9 @@ jobs:
       - name: Install sample project
         working-directory: test
         run: npm ci
+      - name: Prepare sample PPX
+        working-directory: test
+        run: npm run prepare-ppx
       - name: Build sample project
         working-directory: test
         run: npx rescript
