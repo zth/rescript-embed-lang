@@ -26,7 +26,7 @@ jobs:
             rsync \
             unzip \
             bubblewrap
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Trust the mounted workspace
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Set up OCaml
@@ -46,7 +46,7 @@ jobs:
           chmod +w ppx-linux
           strip ppx-linux
       - name: Upload PPX artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ppx-linux
           path: ppx-*
@@ -66,7 +66,7 @@ jobs:
     name: Build PPX for release
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Set up OCaml
         uses: ocaml/setup-ocaml@v3
         with:
@@ -86,7 +86,7 @@ jobs:
         run: |
           cp _build/default/bin/RescriptEmbedLang.exe ${{ matrix.artifact }}
       - name: Upload PPX artifact ${{ matrix.platform }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.artifact }}
@@ -96,13 +96,20 @@ jobs:
     name: Build release package
     runs-on: ubuntu-latest
     needs: [build-ppx, build-ppx-linux]
+    permissions:
+      contents: read
+      id-token: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22.x
+          node-version: 24.x
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
         env:
           CI: true
+      - name: Use an OIDC-capable npm CLI
+        run: npm install --global npm@^11.5.1
       - name: Install
         run: npm ci
       - name: Build res
@@ -113,22 +120,22 @@ jobs:
         run: |
           ./build-release.sh
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: ppx-linux
           path: release
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: ppx-macos-latest
           path: release
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: ppx-macos-arm64
           path: release
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: ppx-windows-latest
           path: release
@@ -142,18 +149,17 @@ jobs:
             ppx-macos-arm64
             ppx-windows-latest
       - name: Upload built folder
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-build
           path: release/
-      - uses: JS-DevTools/npm-publish@v4
+      - name: Publish with the requested npm tag
         if: ${{ github.event.inputs.tag_name }}
-        with:
-          token: ${{ secrets.NPM_TOKEN }}
-          package: ./release/package.json
-          tag: ${{ github.event.inputs.tag_name }}
-      - uses: JS-DevTools/npm-publish@v4
+        working-directory: release
+        env:
+          INPUT_TAG_NAME: ${{ github.event.inputs.tag_name }}
+        run: npm publish --tag "$INPUT_TAG_NAME"
+      - name: Publish as latest
         if: ${{ !github.event.inputs.tag_name }}
-        with:
-          token: ${{ secrets.NPM_TOKEN }}
-          package: ./release/package.json
+        working-directory: release
+        run: npm publish
