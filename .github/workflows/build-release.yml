@@ -9,44 +9,40 @@ on:
 
 jobs:
   build-ppx-linux:
-    strategy:
-      matrix:
-        platform: [ubuntu-latest]
-
     name: Build PPX for release
-    runs-on: ${{ matrix.platform }}
+    runs-on: ubuntu-latest
     container:
-      image: alexfedoseev/alpine-node-yarn-esy:0.0.9
+      image: debian:bullseye
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-        with:
-          node-version: 18.x
-        env:
-          CI: true
-      - name: Esy install
-        run: esy install
-      - name: Print esy cache
-        id: print_esy_cache
-        run: node $GITHUB_WORKSPACE/.github/workflows/print_esy_cache.js
-      - name: Try to restore dependencies cache
-        uses: actions/cache@v2
-        id: deps-cache
-        with:
-          path: ${{ steps.print_esy_cache.outputs.esy_cache }}
-          key: ${{ matrix.platform }}---v1${{ hashFiles('**/index.json') }}
-          restore-keys: |
-            ${{ matrix.platform }}---v1
-      - name: Build PPX
-        run: esy linux-release-static
-      - name: Copy built PPX file
+      - name: Install system dependencies
         run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            build-essential \
+            curl \
+            ca-certificates \
+            git \
+            unzip \
+            bubblewrap
+      - uses: actions/checkout@v4
+      - name: Set up OCaml
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: "4.14"
+          dune-cache: true
+          cache-prefix: "v1-bullseye"
+      - name: Install PPX dependencies
+        run: opam install . --deps-only
+      - name: Build PPX
+        run: |
+          opam exec -- dune build --profile release-static bin/RescriptEmbedLang.exe
           cp _build/default/bin/RescriptEmbedLang.exe ppx-linux
       - name: Strip binary
         run: |
+          chmod +w ppx-linux
           strip ppx-linux
       - name: Upload PPX artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: ppx-linux
           path: ppx-*
@@ -55,39 +51,41 @@ jobs:
   build-ppx:
     strategy:
       matrix:
-        platform: [
-            macos-13, # x64
-            macos-14, # ARM,
-            windows-latest,
-          ]
+        include:
+          - platform: macos-15-intel
+            artifact: ppx-macos-latest
+          - platform: macos-15
+            artifact: ppx-macos-arm64
+          - platform: windows-latest
+            artifact: ppx-windows-latest
 
     name: Build PPX for release
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+      - name: Set up OCaml
+        uses: ocaml/setup-ocaml@v3
         with:
-          node-version: 18.x
-        env:
-          CI: true
-      - name: Install esy
-        run: npm install -g esy
+          ocaml-compiler: "4.14"
+          dune-cache: true
+          cache-prefix: "v1"
+      - name: Install PPX dependencies
+        run: opam install . --deps-only
       - name: Build PPX
-        uses: esy/github-action@master
-        with:
-          cache-key: ${{ matrix.platform }}-${{ hashFiles('esy.lock/index.json') }}-v3
+        run: opam exec -- dune build bin/RescriptEmbedLang.exe
       - name: Strip PPX binary
         if: runner.os != 'Windows'
         run: |
+          chmod +w _build/default/bin/RescriptEmbedLang.exe
           strip _build/default/bin/RescriptEmbedLang.exe
       - name: Copy built PPX file
         run: |
-          cp _build/default/bin/RescriptEmbedLang.exe ppx-${{ matrix.platform }}
+          cp _build/default/bin/RescriptEmbedLang.exe ${{ matrix.artifact }}
       - name: Upload PPX artifact ${{ matrix.platform }}
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
-          name: ppx-${{ matrix.platform }}
-          path: ppx-${{ matrix.platform }}
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
           if-no-files-found: error
 
   build-release:
@@ -95,76 +93,62 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build-ppx, build-ppx-linux]
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-node@v2-beta
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 16
+          node-version: 22.x
         env:
           CI: true
       - name: Install
-        run: npm i
+        run: npm ci
       - name: Build res
         run: npm run build
-      - name: Install esy
-        run: npm install -g esy
-      - name: Build PPX
-        uses: esy/github-action@v1
-        with:
-          cache-key: ${{ hashFiles('esy.lock/index.json') }}
       - name: Build assets
         env:
           INPUT_TAG_NAME: ${{ github.event.inputs.tag_name }}
         run: |
           ./build-release.sh
 
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v4
         with:
           name: ppx-linux
           path: release
 
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v4
         with:
-          name: ppx-macos-13
+          name: ppx-macos-latest
           path: release
 
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v4
         with:
-          name: ppx-macos-14
+          name: ppx-macos-arm64
           path: release
 
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v4
         with:
           name: ppx-windows-latest
           path: release
 
-      - name: Rename MacOS old binary
-        run: |
-          mv release/ppx-macos-13 release/ppx-macos-latest
-
-      - name: Rename MacOS ARM64 binary
-        run: |
-          mv release/ppx-macos-14 release/ppx-macos-arm64
-
       - name: Remove artifacts
-        uses: geekyeggo/delete-artifact@v1
+        uses: geekyeggo/delete-artifact@v6
         with:
           name: |
             ppx-linux
-            ppx-macos-13
-            ppx-macos-14
+            ppx-macos-latest
+            ppx-macos-arm64
             ppx-windows-latest
       - name: Upload built folder
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: release-build
           path: release/
-      - uses: JS-DevTools/npm-publish@v1
+      - uses: JS-DevTools/npm-publish@v4
         if: ${{ github.event.inputs.tag_name }}
         with:
           token: ${{ secrets.NPM_TOKEN }}
           package: ./release/package.json
           tag: ${{ github.event.inputs.tag_name }}
-      - uses: JS-DevTools/npm-publish@v1
+      - uses: JS-DevTools/npm-publish@v4
         if: ${{ !github.event.inputs.tag_name }}
         with:
           token: ${{ secrets.NPM_TOKEN }}

@@ -8,71 +8,78 @@ on:
 
 jobs:
   ppx_linux:
-    strategy:
-      matrix:
-        platform: [ubuntu-latest]
-
-    name: PPX
-    runs-on: ${{ matrix.platform }}
+    name: PPX Linux
+    runs-on: ubuntu-latest
     container:
-      image: alexfedoseev/alpine-node-yarn-esy:0.0.9
+      image: debian:bullseye
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v3
-        with:
-          node-version: 14.x
-        env:
-          CI: true
-      - name: Esy install
-        run: esy install
-      - name: Print esy cache
-        id: print_esy_cache
-        run: node $GITHUB_WORKSPACE/.github/workflows/print_esy_cache.js
-      - name: Try to restore dependencies cache
-        uses: actions/cache@v3
-        id: deps-cache
-        with:
-          path: ${{ steps.print_esy_cache.outputs.esy_cache }}
-          key: ${{ matrix.platform }}---v1${{ hashFiles('**/index.json') }}
-          restore-keys: |
-            ${{ matrix.platform }}---v1
-      - name: Build PPX
-        run: esy linux-release-static
-      - name: Copy built PPX file
+      - name: Install system dependencies
         run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            build-essential \
+            curl \
+            ca-certificates \
+            git \
+            unzip \
+            bubblewrap
+      - uses: actions/checkout@v4
+      - name: Set up OCaml
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: "4.14"
+          dune-cache: true
+          cache-prefix: "v1-bullseye"
+      - name: Install dependencies
+        run: opam install . --deps-only
+      - name: Build PPX
+        run: |
+          opam exec -- dune build --profile release-static bin/RescriptEmbedLang.exe
           cp _build/default/bin/RescriptEmbedLang.exe ppx-linux
       - name: Strip binary
         run: |
+          chmod +w ppx-linux
           strip ppx-linux
       - name: Upload PPX artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: ppx-${{ matrix.platform }}
+          name: ppx-linux
           path: ppx-*
           if-no-files-found: error
   ppx:
     strategy:
       matrix:
-        platform: [macos-latest, windows-latest]
+        include:
+          - platform: macos-15-intel
+            artifact: ppx-macos-latest
+          - platform: macos-15
+            artifact: ppx-macos-arm64
+          - platform: windows-latest
+            artifact: ppx-windows-latest
 
     name: PPX
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
-          node-version: 16.x
+          node-version: 22.x
         env:
           CI: true
-      - name: Install esy
-        run: npm install -g esy
-      - name: Build PPX
-        uses: esy/github-action@master
+      - name: Set up OCaml
+        uses: ocaml/setup-ocaml@v3
         with:
-          cache-key: ${{ matrix.platform }}-${{ hashFiles('esy.lock/index.json') }}-v3
+          ocaml-compiler: "4.14"
+          dune-cache: true
+          cache-prefix: "v1"
+      - name: Install dependencies
+        run: opam install . --deps-only
+      - name: Build PPX
+        run: opam exec -- dune build bin/RescriptEmbedLang.exe
       - name: Strip PPX binary
         if: runner.os != 'Windows'
         run: |
+          chmod +w _build/default/bin/RescriptEmbedLang.exe
           strip _build/default/bin/RescriptEmbedLang.exe
       - name: Install sample project
         working-directory: test
@@ -84,8 +91,8 @@ jobs:
         working-directory: test
         run: npx rescript
       - name: Upload PPX artifact ${{ matrix.platform }}
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: ppx-${{ matrix.platform }}
+          name: ${{ matrix.artifact }}
           path: _build/default/bin/RescriptEmbedLang.exe
           if-no-files-found: error

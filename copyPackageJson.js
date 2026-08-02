@@ -3,12 +3,40 @@ const tagName = process.argv[2];
 const fs = require("fs");
 const path = require("path");
 
-const pkgJsonRaw = fs.readFileSync(
-  path.resolve(path.join(__dirname, "./package-release.json")),
-  "utf-8"
+const sourcePkgJson = JSON.parse(
+  fs.readFileSync(path.resolve(__dirname, "package.json"), "utf-8")
 );
-
-const pkgJson = JSON.parse(pkgJsonRaw);
+const {
+  name,
+  version,
+  description,
+  main,
+  engines,
+  peerDependencies,
+  repository,
+  keywords,
+  author,
+  license,
+  bugs,
+  homepage,
+} = sourcePkgJson;
+const pkgJson = {
+  name,
+  version,
+  description,
+  main,
+  engines,
+  peerDependencies,
+  scripts: {
+    postinstall: "node postinstall.js",
+  },
+  repository,
+  keywords,
+  author,
+  license,
+  bugs,
+  homepage,
+};
 
 // Bypass forcing package name and version for the beta track.
 if (tagName && tagName !== "beta") {

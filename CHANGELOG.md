@@ -2,6 +2,12 @@
 
 ## master
 
+- Require ReScript 12.3 and Node.js 20.11 or newer.
+- Remove the `@rescript/core` and `@rescript/tools` dependencies.
+- Use ReScript 12's standard library and bundled tools CLI.
+- Update the sample project and CI for ReScript 12's package-based PPX resolution.
+- Replace esy with stock OCaml, opam, and dune builds for the native PPX.
+
 ## 0.5.5
 
 - Fix small mistake in generic generators.

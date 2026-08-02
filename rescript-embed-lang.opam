@@ -1,0 +1,37 @@
+opam-version: "2.0"
+name: "rescript-embed-lang"
+version: "0.5.5"
+synopsis: "A general purpose PPX for embedding languages in ReScript"
+description: "A general purpose PPX and library for embedding other languages into ReScript via code generation."
+maintainer: "Gabriel Nordeborn"
+authors: ["Gabriel Nordeborn"]
+license: "MIT"
+homepage: "https://github.com/zth/rescript-embed-lang"
+bug-reports: "https://github.com/zth/rescript-embed-lang/issues"
+dev-repo: "git+https://github.com/zth/rescript-embed-lang.git"
+depends: [
+  "ocaml" {>= "4.14.0" & < "5.0.0"}
+  "dune" {>= "3.7.1"}
+  "ppxlib"
+]
+pin-depends: [
+  ["ppxlib.dev" "git+https://github.com/zth/ppxlib.git#32f83395fb89693a873541298b6367449f23bc4a"]
+]
+build: [
+  ["dune" "subst"] {dev}
+  [
+    "dune"
+    "build"
+    "-p"
+    name
+    "-j"
+    jobs
+    "--promote-install-files=false"
+    "@install"
+    "@runtest" {with-test}
+    "@doc" {with-doc}
+  ]
+]
+install: [
+  ["dune" "install" "-p" name "--create-install-files" name]
+]

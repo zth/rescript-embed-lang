@@ -12,7 +12,7 @@ The PPX itself is very very simple - just swap out the embedded language string 
 npm i rescript-embed-lang
 ```
 
-And then add the PPX to your `bsconfig.json`:
+And then add the PPX to your `rescript.json`:
 
 ```json
 "ppx-flags": ["rescript-embed-lang/ppx"]

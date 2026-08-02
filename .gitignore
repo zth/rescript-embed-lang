@@ -2,6 +2,7 @@
 node_modules/
 _build
 _esy
+_opam
 _release
 *.byte
 *.native
@@ -10,3 +11,4 @@ _release
 release
 lib
 *.mjs
+ppx-*

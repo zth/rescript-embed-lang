@@ -3,9 +3,12 @@
   "version": "0.5.5",
   "description": "A general purpose PPX and library for embedding other languages into ReScript, via code generation.",
   "main": "src/RescriptEmbedLang.mjs",
+  "engines": {
+    "node": ">=20.11.0"
+  },
   "devDependencies": {
     "rescript": "^12.3.0",
-    "rescript-nodejs": "^16.0.0"
+    "rescript-nodejs": "^17.0.0"
   },
   "peerDependencies": {
     "rescript": ">=12.3.0"
@@ -18,9 +21,9 @@
     "type": "git",
     "url": "git+https://github.com/zth/rescript-embed-lang.git"
   },
-  "keywords": [],
+  "keywords": ["rescript"],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/zth/rescript-embed-lang/issues"
   },
