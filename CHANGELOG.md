@@ -7,6 +7,7 @@
 - Use ReScript 12's standard library and bundled tools CLI.
 - Update the sample project and CI for ReScript 12's package-based PPX resolution.
 - Replace esy with stock OCaml, opam, and dune builds for the native PPX.
+- Build release PPXs with OCaml 5.0, the newest compiler supported by ReScript 12.3's binary AST migration layer.
 - Make the installed Windows PPX resolvable through the extensionless package path used by ReScript 12.
 
 ## 0.5.5

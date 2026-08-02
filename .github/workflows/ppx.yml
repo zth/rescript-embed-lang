@@ -31,9 +31,9 @@ jobs:
       - name: Set up OCaml
         uses: ocaml/setup-ocaml@v3
         with:
-          ocaml-compiler: "4.14"
+          ocaml-compiler: "5.0"
           dune-cache: true
-          cache-prefix: "v1-bullseye"
+          cache-prefix: "v2-ocaml5-bullseye"
       - name: Install dependencies
         run: opam install . --deps-only
       - name: Build PPX
@@ -50,6 +50,22 @@ jobs:
           name: ppx-linux
           path: ppx-*
           if-no-files-found: error
+  ppx_compat:
+    name: PPX source compatibility (OCaml 4.14)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up OCaml
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: "4.14"
+          dune-cache: true
+          cache-prefix: "v1-compat"
+      - name: Install dependencies
+        run: opam install . --deps-only
+      - name: Build PPX
+        run: opam exec -- dune build bin/RescriptEmbedLang.exe
+
   ppx:
     strategy:
       matrix:
@@ -73,9 +89,9 @@ jobs:
       - name: Set up OCaml
         uses: ocaml/setup-ocaml@v3
         with:
-          ocaml-compiler: "4.14"
+          ocaml-compiler: "5.0"
           dune-cache: true
-          cache-prefix: "v1"
+          cache-prefix: "v2-ocaml5"
       - name: Install dependencies
         run: opam install . --deps-only
       - name: Build PPX

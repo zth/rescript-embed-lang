@@ -32,9 +32,9 @@ jobs:
       - name: Set up OCaml
         uses: ocaml/setup-ocaml@v3
         with:
-          ocaml-compiler: "4.14"
+          ocaml-compiler: "5.0"
           dune-cache: true
-          cache-prefix: "v1-bullseye"
+          cache-prefix: "v2-ocaml5-bullseye"
       - name: Install PPX dependencies
         run: opam install . --deps-only
       - name: Build PPX
@@ -70,9 +70,9 @@ jobs:
       - name: Set up OCaml
         uses: ocaml/setup-ocaml@v3
         with:
-          ocaml-compiler: "4.14"
+          ocaml-compiler: "5.0"
           dune-cache: true
-          cache-prefix: "v1"
+          cache-prefix: "v2-ocaml5"
       - name: Install PPX dependencies
         run: opam install . --deps-only
       - name: Build PPX
