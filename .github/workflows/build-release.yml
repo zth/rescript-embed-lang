@@ -23,6 +23,7 @@ jobs:
             ca-certificates \
             git \
             gnupg \
+            rsync \
             unzip \
             bubblewrap
       - uses: actions/checkout@v4
