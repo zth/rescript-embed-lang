@@ -21,6 +21,7 @@ jobs:
             curl \
             ca-certificates \
             git \
+            gnupg \
             unzip \
             bubblewrap
       - uses: actions/checkout@v4
