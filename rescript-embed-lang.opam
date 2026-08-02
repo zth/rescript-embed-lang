@@ -1,6 +1,6 @@
 opam-version: "2.0"
 name: "rescript-embed-lang"
-version: "0.5.5"
+version: "0.6.0"
 synopsis: "A general purpose PPX for embedding languages in ReScript"
 description: "A general purpose PPX and library for embedding other languages into ReScript via code generation."
 maintainer: "Gabriel Nordeborn"

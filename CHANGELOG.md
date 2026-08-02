@@ -1,6 +1,6 @@
 # Changelog
 
-## master
+## 0.6.0
 
 - Require ReScript 12.3 and Node.js 20.11 or newer.
 - Remove the `@rescript/core` and `@rescript/tools` dependencies.
