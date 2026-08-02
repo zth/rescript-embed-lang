@@ -111,7 +111,7 @@ jobs:
       - name: Build sample project
         working-directory: test
         run: npx rescript
-      - name: Test named generation and stale hashes
+      - name: Test named generation API
         working-directory: test
         run: npm run test:named
       - name: Upload PPX artifact ${{ matrix.platform }}

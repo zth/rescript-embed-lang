@@ -9,6 +9,9 @@
 - Replace esy with stock OCaml, opam, and dune builds for the native PPX.
 - Build release PPXs with OCaml 5.0, the newest compiler supported by ReScript 12.3's binary AST migration layer.
 - Make the installed Windows PPX resolvable through the extensionless package path used by ReScript 12.
+- Add deterministic named generation with one stable generated module per embed.
+- Make value embeds the primary API, including inline expression positions, while retaining module and include embeds.
+- Expose named generated content directly at the stable module root without source-hash wrappers.
 
 ## 0.5.5
 

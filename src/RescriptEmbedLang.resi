@@ -56,7 +56,7 @@ type cardinality = ExactlyOne | First
 /** Capture selected from the configured ECMAScript regular expression. */
 type capture = Numbered(int) | Named(string)
 
-/** Controls deterministic generated filenames. Sequential preserves the legacy M1/M2 layout. */
+/** Controls stable per-embed generated modules. Named value embeds resolve to the module's `default`; Sequential preserves the legacy M1/M2 layout. */
 type generatedName =
   | Sequential
   | Regex({pattern: string, flags: string, capture: capture, cardinality: cardinality})

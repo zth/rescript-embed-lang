@@ -81,6 +81,13 @@ let test_cache () =
   if after <> before + 1 then
     fail "regex cache regression: expected one compilation, observed %d" (after - before)
 
+let test_stable_target () =
+  let actual =
+    Named.named_target ~file_name:"src/Operations.res" ~extension:"fixture" ~name:"GetThing"
+  in
+  if not (String.equal actual "Operations__fixture__GetThing") then
+    fail "unexpected stable named target %S" actual
+
 let test_timeout () =
   let config =
     Named.Regex
@@ -103,5 +110,6 @@ let () =
   Yojson.Safe.Util.member "cases" json
   |> Yojson.Safe.Util.to_list |> List.iter run_case;
   test_cache ();
+  test_stable_target ();
   test_timeout ();
   Printf.printf "native named-generation corpus: ok\n"

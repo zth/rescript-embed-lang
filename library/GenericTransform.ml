@@ -15,12 +15,12 @@ let increment_transformed_count extension =
   Hashtbl.replace transformed_count extension next;
   next
 
-type transform_mode = Let_binding | Module_binding
+type transform_mode = Value | Module
 
 let sequential_target ~file_name ~extension ~transform_mode =
   Printf.sprintf "%s__%s.M%d%s" (NamedGeneration.source_module file_name) extension
     (increment_transformed_count extension)
-    (match transform_mode with Let_binding -> ".default" | Module_binding -> "")
+    (match transform_mode with Value -> ".default" | Module -> "")
 
 let literal_source ~loc payload =
   match payload with
@@ -49,8 +49,8 @@ let target ~loc ~file_name ~extension ~payload ~transform_mode =
           | Some name -> name
           | None -> assert false
         in
-        NamedGeneration.named_target ~file_name ~extension ~source ~name
-        ^ (match transform_mode with Let_binding -> ".default" | Module_binding -> "")
+        NamedGeneration.named_target ~file_name ~extension ~name
+        ^ (match transform_mode with Value -> ".default" | Module -> "")
   with Failure message -> Location.raise_errorf ~loc "%s" message
 
 let extension_target ~loc ~file_name ~ext_name ~payload ~transform_mode =
@@ -65,7 +65,7 @@ let transform_expr expr =
     when is_generated_extension_node ext_name -> (
       match
         extension_target ~loc ~file_name:loc.loc_start.pos_fname ~ext_name ~payload
-          ~transform_mode:Let_binding
+          ~transform_mode:Value
       with
       | None -> expr
       | Some target -> Ast_helper.Exp.ident ~loc { txt = Longident.parse target; loc })
@@ -73,27 +73,17 @@ let transform_expr expr =
 
 class mapper =
   object
-    inherit Ast_traverse.map
+    inherit Ast_traverse.map as super
+
+    method! expression expr =
+      match expr.Parsetree.pexp_desc with
+      | Pexp_extension ({ txt = ext_name; _ }, _)
+        when is_generated_extension_node ext_name ->
+          transform_expr expr
+      | _ -> super#expression expr
 
     method! structure_item structure_item =
       match structure_item.pstr_desc with
-      | Pstr_value
-          ( rec_flag,
-            [
-              ({
-                 pvb_expr =
-                   ({ pexp_desc = Pexp_extension ({ txt = ext_name; _ }, _); _ } as
-                   expr);
-                 _;
-               } as value_binding);
-            ] )
-        when is_generated_extension_node ext_name ->
-          {
-            structure_item with
-            pstr_desc =
-              Pstr_value
-                (rec_flag, [ { value_binding with pvb_expr = transform_expr expr } ]);
-          }
       | Pstr_include
           ({
              pincl_mod =
@@ -104,9 +94,9 @@ class mapper =
         when is_generated_extension_node ext_name -> (
           match
             extension_target ~loc ~file_name:loc.loc_start.pos_fname ~ext_name
-              ~payload ~transform_mode:Module_binding
+              ~payload ~transform_mode:Module
           with
-          | None -> structure_item
+          | None -> super#structure_item structure_item
           | Some target ->
               {
                 structure_item with
@@ -132,9 +122,9 @@ class mapper =
         when is_generated_extension_node ext_name -> (
           match
             extension_target ~loc ~file_name:loc.loc_start.pos_fname ~ext_name
-              ~payload ~transform_mode:Module_binding
+              ~payload ~transform_mode:Module
           with
-          | None -> structure_item
+          | None -> super#structure_item structure_item
           | Some target ->
               {
                 structure_item with
@@ -150,7 +140,7 @@ class mapper =
                         };
                     };
               })
-      | _ -> structure_item
+      | _ -> super#structure_item structure_item
   end
 
 let structure_mapper structure =

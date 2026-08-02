@@ -144,10 +144,45 @@ let embed = RescriptEmbedLang.make(
 )
 ```
 
-For this source:
+Value embeds are the primary API:
 
 ```rescript
 // Ga4Setup.res
+let query = %generated.gqlExternalSchema(`
+  query Ga4Properties {
+    ga4Properties {
+      id
+    }
+  }
+`)
+
+await client->run(query, variables)
+```
+
+They also work inline in any expression position:
+
+```rescript
+await client->run(
+  %generated.gqlExternalSchema(`
+    query Ga4Properties {
+      ga4Properties {
+        id
+      }
+    }
+  `),
+  variables,
+)
+```
+
+The generator emits the stable module `Ga4Setup__gqlExternalSchema__Ga4Properties.res`. Its generated content is exposed at the module root, so a GraphQL generator can provide `variables`, `response`, `operation`, and `default`. A value embed expands directly to:
+
+```rescript
+Ga4Setup__gqlExternalSchema__Ga4Properties.default
+```
+
+Use a module embed when callers also want a convenient local name for the generated types and operation:
+
+```rescript
 module Ga4Properties = %generated.gqlExternalSchema(`
   query Ga4Properties {
     ga4Properties {
@@ -155,9 +190,16 @@ module Ga4Properties = %generated.gqlExternalSchema(`
     }
   }
 `)
+
+type variables = Ga4Properties.variables
+type response = Ga4Properties.response
+
+await client->run(Ga4Properties.default, variables)
 ```
 
-the generator emits `Ga4Setup__gqlExternalSchema__Ga4Properties.res`. It writes the versioned PPX configuration itself, so the regular expression is not duplicated in `rescript.json`:
+Generation must run before ReScript compilation. There are no source hashes in the generated API or PPX target; operation names provide stable generated filenames and module references.
+
+The generator writes the versioned PPX configuration itself, so the regular expression is not duplicated in `rescript.json`:
 
 ```bash
 my-generator generate --src ./src --output ./lib/bs \
@@ -179,7 +221,7 @@ Pass that file explicitly to the PPX:
 }
 ```
 
-Named output uses a SHA-256 source-hash module, so changing an embed without regenerating causes compilation to fail instead of silently linking stale code. Generation is staged before commit, detects case-insensitive and user-module collisions, removes only files recorded in its ownership index, and includes extra emitted artifacts in the same transaction. Watch runs are serialized and coalesced.
+Generation is staged before commit, detects case-insensitive and user-module collisions, removes only files recorded in its ownership index, and includes extra emitted artifacts in the same transaction. Watch runs are serialized and coalesced.
 
 `Sequential` remains the default, preserving the existing `M1`, `M2`, and monolithic-file behavior.
 

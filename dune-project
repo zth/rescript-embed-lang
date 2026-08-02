@@ -12,7 +12,6 @@
     (< 5.1.0)))
   (dune
    (>= 3.8))
-  digestif
   ppxlib
   (quickjs (= 0.5.1))
   yojson))

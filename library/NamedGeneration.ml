@@ -13,7 +13,6 @@ type generated_name =
 type config = { version : int; extensions : (string, generated_name) Hashtbl.t }
 
 let config_version = 1
-let generator_format_version = 1
 let config_path = ref None
 let loaded_config = ref None
 let regexp_cache = Hashtbl.create 8
@@ -235,18 +234,11 @@ let extract_name ~extension ~source = function
              extension name (capture_description capture) pattern flags);
       Some name
 
-let source_hash ~extension ~source =
-  Printf.sprintf "rescript-embed-lang\000format=%d\000config=%d\000extension=%s\000source=%s"
-    generator_format_version config_version extension source
-  |> Digestif.SHA256.digest_string |> Digestif.SHA256.to_hex
-
 let source_module file_name =
   let base = Filename.basename file_name in
   if Filename.check_suffix base ".res" then Filename.chop_suffix base ".res"
   else if Filename.check_suffix base ".resi" then Filename.chop_suffix base ".resi"
   else base
 
-let named_target ~file_name ~extension ~source ~name =
-  let hash = source_hash ~extension ~source in
-  Printf.sprintf "%s__%s__%s.SourceHash_%s" (source_module file_name) extension name
-    hash
+let named_target ~file_name ~extension ~name =
+  Printf.sprintf "%s__%s__%s" (source_module file_name) extension name
