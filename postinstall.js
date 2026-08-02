@@ -77,6 +77,15 @@ function copyPlatformBinaries(platform) {
     fs.copyFileSync(path.join(__dirname, "ppx-" + platform), ppxFinalPath);
   }
   fs.chmodSync(ppxFinalPath, 0o777);
+
+  if (platform === "windows-latest") {
+    const extensionlessPpxPath = path.join(__dirname, "ppx");
+
+    if (!fs.existsSync(extensionlessPpxPath)) {
+      fs.copyFileSync(ppxFinalPath, extensionlessPpxPath);
+    }
+    fs.chmodSync(extensionlessPpxPath, 0o777);
+  }
 }
 
 function unlinkIfNotExistsSync(path) {
