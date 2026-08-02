@@ -505,7 +505,6 @@ module SyncFs = {
   @module("node:fs") external makeDirectory: (string, mkdirOptions) => unit = "mkdirSync"
   @module("node:fs") external rename: (string, string) => unit = "renameSync"
   @module("node:fs") external remove: (string, rmOptions) => unit = "rmSync"
-  @module("node:fs") external stat: string => Fs.Stats.t = "statSync"
   @val external nowMilliseconds: unit => float = "Date.now"
 }
 
@@ -594,25 +593,6 @@ let commitFiles = async (
       )
     }
   }
-
-  let directoryEntries = outputDir->SyncFs.readDirectory
-  directoryEntries->Array.forEach(fileName => {
-    if fileName->String.endsWith(`__${extension}.res`) {
-      let candidate = Path.join([outputDir, fileName])
-      if candidate->SyncFs.stat->Fs.Stats.isFile {
-        let content = candidate->SyncFs.readText
-        if content->String.startsWith("// @sourceHash ") {
-          previous->Array.push(fileName)
-          let prefix = fileName->String.slice(~start=0, ~end=-4)
-          directoryEntries->Array.forEach(extraName => {
-            if extraName->String.startsWith(prefix ++ ".") {
-              previous->Array.push(extraName)
-            }
-          })
-        }
-      }
-    }
-  })
 
   let previousSet = previous->Set.fromArray
   let existingByFold: Map.t<string, string> = Map.make()

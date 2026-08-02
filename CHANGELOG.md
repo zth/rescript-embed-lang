@@ -12,6 +12,7 @@
 - Add deterministic named generation with one stable generated module per embed.
 - Make value embeds the primary API, including inline expression positions, while retaining module and include embeds.
 - Expose named generated content directly at the stable module root without source-hash wrappers.
+- Stop recognizing legacy `// @sourceHash` outputs; remove old generated files once before upgrading.
 
 ## 0.5.5
 
