@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "extensions": {
+    "fixture": {
+      "generatedName": {
+        "kind": "regex",
+        "pattern": "^[ \\t]*(?:query|mutation|subscription)[ \\t\\r\\n]+([_A-Za-z][_0-9A-Za-z]*)",
+        "flags": "m",
+        "capture": {
+          "kind": "numbered",
+          "index": 1
+        },
+        "cardinality": "exactlyOne"
+      }
+    }
+  }
+}

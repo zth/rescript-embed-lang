@@ -1,5 +1,6 @@
 open Ppxlib
 module Utils = Utils
+module NamedGeneration = NamedGeneration
 
 let () =
   Driver.register_transformation

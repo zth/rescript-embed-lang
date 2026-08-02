@@ -124,6 +124,66 @@ The formula for what code to refer to when transforming is be: `<filename>__<gen
 
 > Remember, the actual codegen creating the module we're referring to here from the source `css` text isn't part of this package. This package is just about making it simple to tie together generated things with its source in ReScript.
 
+
+### Deterministic named generation
+
+Generators can opt into one generated file per embed by deriving a stable name with the same ECMAScript regular expression in Node and the native PPX:
+
+```rescript
+let embed = RescriptEmbedLang.make(
+  ~extensionPattern=Generic("gqlExternalSchema"),
+  ~generatedName=Regex({
+    pattern: "^[ \\t]*(?:query|mutation|subscription)[ \\t\\r\\n]+([_A-Za-z][_0-9A-Za-z]*)",
+    flags: "m",
+    capture: Numbered(1),
+    cardinality: ExactlyOne,
+  }),
+  ~setup=RescriptEmbedLang.defaultSetup,
+  ~generate,
+  ~cliHelpText,
+)
+```
+
+For this source:
+
+```rescript
+// Ga4Setup.res
+module Ga4Properties = %generated.gqlExternalSchema(`
+  query Ga4Properties {
+    ga4Properties {
+      id
+    }
+  }
+`)
+```
+
+the generator emits `Ga4Setup__gqlExternalSchema__Ga4Properties.res`. It writes the versioned PPX configuration itself, so the regular expression is not duplicated in `rescript.json`:
+
+```bash
+my-generator generate --src ./src --output ./lib/bs \
+  --embed-lang-config ./lib/bs/rescript-embed-lang.json
+```
+
+Pass that file explicitly to the PPX:
+
+```json
+{
+  "ppx-flags": [
+    [
+      "rescript-embed-lang/ppx",
+      "-enable-generic-transform",
+      "-embed-lang-config",
+      "./lib/bs/rescript-embed-lang.json"
+    ]
+  ]
+}
+```
+
+Named output uses a SHA-256 source-hash module, so changing an embed without regenerating causes compilation to fail instead of silently linking stale code. Generation is staged before commit, detects case-insensitive and user-module collisions, removes only files recorded in its ownership index, and includes extra emitted artifacts in the same transaction. Watch runs are serialized and coalesced.
+
+`Sequential` remains the default, preserving the existing `M1`, `M2`, and monolithic-file behavior.
+
+
 ### SQL
 
 Embedding for Postgres SQL via [pgtyped-rescript](https://github.com/zth/pgtyped-rescript).

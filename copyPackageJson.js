@@ -12,6 +12,7 @@ const {
   description,
   main,
   engines,
+  dependencies,
   peerDependencies,
   repository,
   keywords,
@@ -26,6 +27,7 @@ const pkgJson = {
   description,
   main,
   engines,
+  dependencies,
   peerDependencies,
   scripts: {
     postinstall: "node postinstall.js",

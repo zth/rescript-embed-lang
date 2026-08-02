@@ -39,16 +39,32 @@ module CliArgs: {
  - `FirstClass("edgeql")` means `%edgeql(...)`
 */
 type extensionPattern =
-  | /**A _generic_ extension. Generic here means that it's in the form of `%generated.identifier(...)`.
+  /**A _generic_ extension. Generic here means that it's in the form of `%generated.identifier(...)`.
   
   ## Examples
   - `Generic("css")` means `%generated.css(...)`*/
-  Generic(string)
-  | /**A first class extension. First class means that it's not prepended with `generated`. Using this requires dedicated support in the PPX.
+  | Generic(string)
+  /**A first class extension. First class means that it's not prepended with `generated`. Using this requires dedicated support in the PPX.
   
   ## Examples
   - `FirstClass("edgeql")` means `%edgeql(...)`*/
-  FirstClass(string)
+  | FirstClass(string)
+
+/** Cardinality required when extracting a generated name. */
+type cardinality = ExactlyOne | First
+
+/** Capture selected from the configured ECMAScript regular expression. */
+type capture = Numbered(int) | Named(string)
+
+/** Controls deterministic generated filenames. Sequential preserves the legacy M1/M2 layout. */
+type generatedName =
+  | Sequential
+  | Regex({pattern: string, flags: string, capture: capture, cardinality: cardinality})
+
+module GeneratedName: {
+  /** Extract and validate a deterministic name using ECMAScript RegExp semantics. */
+  let extract: (~extension: string, ~source: string, generatedName) => option<string>
+}
 
 /**
 
@@ -177,6 +193,7 @@ type onWatchConfig<'config> = {
 @live
 let make: (
   ~extensionPattern: extensionPattern,
+  ~generatedName: generatedName=?,
   ~setup: setupConfig => promise<'config>,
   ~generate: generateConfig<'config> => promise<result<generated, string>>,
   ~cliHelpText: string,

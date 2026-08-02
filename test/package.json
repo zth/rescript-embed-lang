@@ -5,14 +5,15 @@
   "main": "index.js",
   "scripts": {
     "prepare-ppx": "node preparePpx.js",
+    "test:named": "node checkNamedGeneration.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "rescript": "^12.3.0",
-    "fast-glob": "3.3.2",
-    "chokidar": "3.6.0"
+    "chokidar": "^3.6.0",
+    "fast-glob": "^3.3.3",
+    "rescript": "^12.3.0"
   }
 }

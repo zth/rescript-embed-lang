@@ -39,6 +39,7 @@ jobs:
       - name: Build PPX
         run: |
           opam exec -- dune build --profile release-static bin/RescriptEmbedLang.exe
+          opam exec -- dune build @runtest
           cp _build/default/bin/RescriptEmbedLang.exe ppx-linux
       - name: Strip binary
         run: |
@@ -64,7 +65,7 @@ jobs:
       - name: Install dependencies
         run: opam install . --deps-only
       - name: Build PPX
-        run: opam exec -- dune build bin/RescriptEmbedLang.exe
+        run: opam exec -- dune build @runtest bin/RescriptEmbedLang.exe
 
   ppx:
     strategy:
@@ -95,7 +96,7 @@ jobs:
       - name: Install dependencies
         run: opam install . --deps-only
       - name: Build PPX
-        run: opam exec -- dune build bin/RescriptEmbedLang.exe
+        run: opam exec -- dune build @runtest bin/RescriptEmbedLang.exe
       - name: Strip PPX binary
         if: runner.os != 'Windows'
         run: |
@@ -110,6 +111,9 @@ jobs:
       - name: Build sample project
         working-directory: test
         run: npx rescript
+      - name: Test named generation and stale hashes
+        working-directory: test
+        run: npm run test:named
       - name: Upload PPX artifact ${{ matrix.platform }}
         uses: actions/upload-artifact@v4
         with:

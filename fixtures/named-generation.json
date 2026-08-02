@@ -1,0 +1,145 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "label": "query with numbered capture",
+      "pattern": "^[ \\t]*(?:query|mutation|subscription)[ \\t\\r\\n]+([_A-Za-z][_0-9A-Za-z]*)",
+      "flags": "m",
+      "captureKind": "numbered",
+      "captureValue": "1",
+      "cardinality": "exactlyOne",
+      "source": "\n  query GetUser($id: ID!) { user(id: $id) { id } }",
+      "expectedName": "GetUser"
+    },
+    {
+      "label": "mutation with CRLF and tabs",
+      "pattern": "^[ \\t]*(?:query|mutation|subscription)[ \\t\\r\\n]+([_A-Za-z][_0-9A-Za-z]*)",
+      "flags": "m",
+      "captureKind": "numbered",
+      "captureValue": "1",
+      "cardinality": "exactlyOne",
+      "source": "\r\n\tmutation\r\nUpdateUser { updateUser { id } }",
+      "expectedName": "UpdateUser"
+    },
+    {
+      "label": "subscription after leading comments",
+      "pattern": "^[ \\t]*(?:query|mutation|subscription)[ \\t\\r\\n]+([_A-Za-z][_0-9A-Za-z]*)",
+      "flags": "m",
+      "captureKind": "numbered",
+      "captureValue": "1",
+      "cardinality": "exactlyOne",
+      "source": "# comment\n# another\nsubscription UserChanged { userChanged { id } }",
+      "expectedName": "UserChanged"
+    },
+    {
+      "label": "fragment before operation and unicode",
+      "pattern": "^[ \\t]*(?:query|mutation|subscription)[ \\t\\r\\n]+([_A-Za-z][_0-9A-Za-z]*)",
+      "flags": "m",
+      "captureKind": "numbered",
+      "captureValue": "1",
+      "cardinality": "exactlyOne",
+      "source": "# café 🚀\nfragment UserFields on User { id }\nquery UserWithFragment { user { ...UserFields } }",
+      "expectedName": "UserWithFragment"
+    },
+    {
+      "label": "named capture",
+      "pattern": "^[ \\t]*query[ \\t\\r\\n]+(?<operation>[_A-Za-z][_0-9A-Za-z]*)",
+      "flags": "m",
+      "captureKind": "named",
+      "captureValue": "operation",
+      "cardinality": "first",
+      "source": "query NamedCapture { viewer { id } }",
+      "expectedName": "NamedCapture"
+    },
+    {
+      "label": "fragment after operation",
+      "pattern": "^[ \\t]*(?:query|mutation|subscription)[ \\t\\r\\n]+([_A-Za-z][_0-9A-Za-z]*)",
+      "flags": "m",
+      "captureKind": "numbered",
+      "captureValue": "1",
+      "cardinality": "exactlyOne",
+      "source": "query BeforeFragment { user { ...Fields } }\nfragment Fields on User { id }",
+      "expectedName": "BeforeFragment"
+    },
+    {
+      "label": "anonymous operation",
+      "pattern": "^[ \\t]*(?:query|mutation|subscription)[ \\t\\r\\n]+([_A-Za-z][_0-9A-Za-z]*)",
+      "flags": "m",
+      "captureKind": "numbered",
+      "captureValue": "1",
+      "cardinality": "exactlyOne",
+      "source": "query { viewer { id } }",
+      "errorContains": "did not match"
+    },
+    {
+      "label": "multiple operations",
+      "pattern": "^[ \\t]*(?:query|mutation|subscription)[ \\t\\r\\n]+([_A-Za-z][_0-9A-Za-z]*)",
+      "flags": "m",
+      "captureKind": "numbered",
+      "captureValue": "1",
+      "cardinality": "exactlyOne",
+      "source": "query One { one }\nmutation Two { two }",
+      "errorContains": "matched more than once"
+    },
+    {
+      "label": "missing numbered capture",
+      "pattern": "^query[ \\t]+[_A-Za-z][_0-9A-Za-z]*",
+      "flags": "m",
+      "captureKind": "numbered",
+      "captureValue": "1",
+      "cardinality": "first",
+      "source": "query MissingCapture { viewer { id } }",
+      "errorContains": "capture 1 was missing"
+    },
+    {
+      "label": "empty capture",
+      "pattern": "^query[ \\t]*([_A-Za-z]*)",
+      "flags": "m",
+      "captureKind": "numbered",
+      "captureValue": "1",
+      "cardinality": "first",
+      "source": "query ",
+      "errorContains": "was empty"
+    },
+    {
+      "label": "invalid generated name",
+      "pattern": "^query[ \\t]+([^ \\t\\r\\n]+)",
+      "flags": "m",
+      "captureKind": "numbered",
+      "captureValue": "1",
+      "cardinality": "first",
+      "source": "query bad-name { viewer { id } }",
+      "errorContains": "is invalid"
+    },
+    {
+      "label": "invalid regex",
+      "pattern": "(",
+      "flags": "m",
+      "captureKind": "numbered",
+      "captureValue": "1",
+      "cardinality": "first",
+      "source": "query Broken { viewer { id } }",
+      "errorContains": "invalid ECMAScript regex"
+    },
+    {
+      "label": "invalid flags",
+      "pattern": "(query)",
+      "flags": "z",
+      "captureKind": "numbered",
+      "captureValue": "1",
+      "cardinality": "first",
+      "source": "query Broken { viewer { id } }",
+      "errorContains": "invalid ECMAScript regex"
+    },
+    {
+      "label": "pathological regex timeout",
+      "pattern": "(a+)+$",
+      "flags": "",
+      "captureKind": "numbered",
+      "captureValue": "0",
+      "cardinality": "first",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!",
+      "errorContains": "timed out after 100ms"
+    }
+  ]
+}

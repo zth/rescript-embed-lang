@@ -21,11 +21,17 @@
     "type": "git",
     "url": "git+https://github.com/zth/rescript-embed-lang.git"
   },
-  "keywords": ["rescript"],
+  "keywords": [
+    "rescript"
+  ],
   "author": "",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/zth/rescript-embed-lang/issues"
   },
-  "homepage": "https://github.com/zth/rescript-embed-lang#readme"
+  "homepage": "https://github.com/zth/rescript-embed-lang#readme",
+  "dependencies": {
+    "chokidar": "^3.6.0",
+    "fast-glob": "^3.3.3"
+  }
 }

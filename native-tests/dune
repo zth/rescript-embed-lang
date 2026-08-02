@@ -1,0 +1,6 @@
+(test
+ (name NamedGenerationTest)
+ (libraries rescript-embed-lang str yojson)
+ (deps ../fixtures/named-generation.json)
+ (action
+  (run %{test} %{dep:../fixtures/named-generation.json})))

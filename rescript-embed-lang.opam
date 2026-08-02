@@ -11,8 +11,11 @@ bug-reports: "https://github.com/zth/rescript-embed-lang/issues"
 dev-repo: "git+https://github.com/zth/rescript-embed-lang.git"
 depends: [
   "ocaml" {>= "4.14.0" & < "5.1.0"}
-  "dune" {>= "3.7.1"}
+  "dune" {>= "3.8"}
+  "digestif"
   "ppxlib"
+  "quickjs" {= "0.5.1"}
+  "yojson"
 ]
 # ReScript 12.3 emits an older binary AST; this fork retains its migration while supporting OCaml 5.0.
 pin-depends: [
