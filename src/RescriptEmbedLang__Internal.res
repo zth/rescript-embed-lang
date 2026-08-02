@@ -5,7 +5,7 @@ module ReadFile = {
   @live
   type createInterfaceOptions<'stream> = {
     input: 'stream,
-    crlfDelay: int,
+    crlfDelay: float,
   }
 
   @send external destroy: 'stream => unit = "destroy"
@@ -22,7 +22,7 @@ module ReadFile = {
 
     let rl = createInterface({
       input: readStream,
-      crlfDelay: %raw("Infinity"),
+      crlfDelay: Float.Constants.positiveInfinity,
     })
 
     Promise.make((resolve, _reject) => {
@@ -67,8 +67,9 @@ module NodeModule = {
 }
 
 let rescriptToolsCliPath = {
-  let importMetaUrl: string = %raw("import.meta.url")
-  let require = NodeModule.createRequire(importMetaUrl)
+  let require = NodeModule.createRequire(
+    NodeJs.Path.join([NodeJs.Process.process->NodeJs.Process.cwd, "package.json"]),
+  )
   let rescriptPackageDir = require->NodeModule.resolve("rescript/package.json")->NodeJs.Path.dirname
 
   NodeJs.Path.join([rescriptPackageDir, "cli", "rescript-tools.js"])

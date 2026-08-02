@@ -137,7 +137,8 @@ let embedLang = RescriptEmbedLang.make(
 
     Ok(
       RescriptEmbedLang.NoModuleName({
-        content: `%%raw(\`import "./${emittedCssFile.fileName}"\`)
+        content: `@module("./${emittedCssFile.fileName}") external stylesheet: unit = "default"
+let _ = stylesheet
 
 type cssModules = {
   ${recordBody}
