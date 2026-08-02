@@ -35,11 +35,14 @@ function generated(source) {
 }
 
 function build() {
-  return spawnSync(
-    path.join(__dirname, "node_modules", ".bin", "rescript"),
-    [],
-    {cwd: __dirname, encoding: "utf8"}
+  const rescriptPackageDir = path.dirname(
+    require.resolve("rescript/package.json")
   );
+  const rescriptCli = path.join(rescriptPackageDir, "cli", "rescript.js");
+  return spawnSync(process.execPath, [rescriptCli], {
+    cwd: __dirname,
+    encoding: "utf8",
+  });
 }
 
 try {
