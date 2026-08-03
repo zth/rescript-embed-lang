@@ -192,7 +192,7 @@ type response = Ga4Properties.response
 await client->run(Ga4Properties.default, variables)
 ```
 
-`GraphqlDefinition` uses the one named operation in a GraphQL document, ignoring any accompanying fragments. If there is no operation, a lone named fragment is accepted. Anonymous operations, multiple operations, and multiple fragments without an operation produce a generator and compile-time error.
+`GraphqlDefinition` uses the one named operation in an executable GraphQL document, ignoring any accompanying fragments. If there is no operation, a lone named fragment is accepted. Anonymous operations, multiple operations, and multiple fragments without an operation produce a generator and compile-time error. Schema and other type-system definitions are outside this strategy's scope.
 
 For embeds that carry a name in their source, use `NameDirective`:
 

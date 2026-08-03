@@ -15,6 +15,7 @@ slash name directive	nameDirective	// @name jsThing\nconst value = 1	name	jsThin
 hash name directive	nameDirective	# @name pythonThing\nvalue = 1	name	pythonThing
 dash name directive	nameDirective	-- @name sqlThing\nselect 1	name	sqlThing
 block name directive	nameDirective	/* @name blockThing */\nconst value = 1	name	blockThing
+block name directive without closer whitespace	nameDirective	/* @name compactBlock*/	name	compactBlock
 multiline name directive	nameDirective	/* @name\n  multilineThing */	name	multilineThing
 invalid name suffix	nameDirective	// @name bad-name	error	invalid @name value
 missing name directive	nameDirective	select 1	error	no valid @name

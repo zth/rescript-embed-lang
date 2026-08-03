@@ -335,8 +335,12 @@ module GeneratedName = {
           while nameEnd.contents < length && isNameContinue(source->String.charAt(nameEnd.contents)) {
             nameEnd := nameEnd.contents + 1
           }
-          if nameEnd.contents < length && !isWhitespace(source->String.charAt(nameEnd.contents)) {
-            panic("invalid @name value; expected [_A-Za-z][_0-9A-Za-z]* followed by whitespace")
+          let hasNameBoundary =
+            nameEnd.contents >= length ||
+            isWhitespace(source->String.charAt(nameEnd.contents)) ||
+            source->String.slice(~start=nameEnd.contents, ~end=nameEnd.contents + 2) === "*/"
+          if !hasNameBoundary {
+            panic("invalid @name value; expected [_A-Za-z][_0-9A-Za-z]* followed by a boundary")
           }
           names->Array.push(source->String.slice(~start=nameStart.contents, ~end=nameEnd.contents))
           index := nameEnd.contents
