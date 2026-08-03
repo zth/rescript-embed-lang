@@ -64,3 +64,8 @@ invalid generated name	regex	^query[ \t]+([^ \t\r\n]+)	m	numbered	1	first	query 
 invalid regex	regex	(	m	numbered	1	first	query Broken { viewer { id } }	error	invalid ECMAScript regex
 invalid flags	regex	(query)	z	numbered	1	first	query Broken { viewer { id } }	error	invalid ECMAScript regex
 pathological regex timeout	regex	(a+)+$		numbered	0	first	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!	error	timed out after 100ms
+shell heredoc body	nameDirectiveShell						cat <<'EOF'\n# @name example\nEOF\n# @name realHeredoc	name	realHeredoc
+shell multiple heredoc bodies	nameDirectiveShell						cat <<A <<-B\n# @name firstFake\nA\n\t# @name secondFake\n\tB\n# @name realMultipleHeredoc	name	realMultipleHeredoc
+shell backtick substitution comment	nameDirectiveShell						value=`echo start\n# @name embeddedBacktick\n`	name	embeddedBacktick
+shell escaped hash	nameDirectiveShell						echo \\# @name fake\n# @name realEscapedHash	name	realEscapedHash
+shell hash inside word	nameDirectiveShell						echo value#notacomment @name fake\n# @name realHashWord	name	realHashWord

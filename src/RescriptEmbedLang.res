@@ -382,6 +382,102 @@ module GeneratedName = {
     let templateDepths: array<int> = []
     let templateCount = ref(0)
     let shellParameterDepth = ref(0)
+    let pendingShellHeredocs: ref<array<(string, bool)>> = ref([])
+    let parseShellHeredoc = start => {
+      let cursor = ref(start + 2)
+      let stripTabs = source->String.charAt(cursor.contents) === "-"
+      if stripTabs {
+        cursor := cursor.contents + 1
+      }
+      while (
+        cursor.contents < length &&
+          (source->String.charAt(cursor.contents) === " " ||
+            source->String.charAt(cursor.contents) === "\t")
+      ) {
+        cursor := cursor.contents + 1
+      }
+      let quote = source->String.charAt(cursor.contents)
+      if quote === "\"" || quote === "'" {
+        let delimiterStart = cursor.contents + 1
+        cursor := delimiterStart
+        while cursor.contents < length && source->String.charAt(cursor.contents) !== quote {
+          cursor := cursor.contents + 1
+        }
+        if cursor.contents < length {
+          Some((
+            source->String.slice(~start=delimiterStart, ~end=cursor.contents),
+            stripTabs,
+            cursor.contents + 1,
+          ))
+        } else {
+          None
+        }
+      } else {
+        let delimiterStart = cursor.contents
+        while (
+          cursor.contents < length &&
+          switch source->String.charAt(cursor.contents) {
+          | " " | "\t" | "\r" | "\n" | ";" | "&" | "|" | "<" | ">" | "(" | ")" => false
+          | _ => true
+          }
+        ) {
+          cursor := cursor.contents + 1
+        }
+        if cursor.contents > delimiterStart {
+          Some((
+            source->String.slice(~start=delimiterStart, ~end=cursor.contents),
+            stripTabs,
+            cursor.contents,
+          ))
+        } else {
+          None
+        }
+      }
+    }
+    let nextLineStart = lineEnd =>
+      if source->String.charAt(lineEnd) === "\r" && source->String.charAt(lineEnd + 1) === "\n" {
+        lineEnd + 2
+      } else if lineEnd < length {
+        lineEnd + 1
+      } else {
+        lineEnd
+      }
+    let skipShellHeredocBodies = start => {
+      let cursor = ref(nextLineStart(start))
+      pendingShellHeredocs.contents->Array.forEach(((delimiter, stripTabs)) => {
+        let found = ref(false)
+        while cursor.contents < length && !found.contents {
+          let lineStart = cursor.contents
+          let lineEnd = ref(lineStart)
+          while (
+            lineEnd.contents < length &&
+            source->String.charAt(lineEnd.contents) !== "\n" &&
+            source->String.charAt(lineEnd.contents) !== "\r"
+          ) {
+            lineEnd := lineEnd.contents + 1
+          }
+          let comparisonStart = ref(lineStart)
+          if stripTabs {
+            while source->String.charAt(comparisonStart.contents) === "\t" {
+              comparisonStart := comparisonStart.contents + 1
+            }
+          }
+          cursor := nextLineStart(lineEnd.contents)
+          if (
+            source->String.slice(~start=comparisonStart.contents, ~end=lineEnd.contents) === delimiter
+          ) {
+            found := true
+          }
+        }
+      })
+      cursor.contents
+    }
+    let isShellCommentStart = index =>
+      index === 0 ||
+      switch source->String.charAt(index - 1) {
+      | " " | "\t" | "\r" | "\n" | ";" | "&" | "|" | "(" | ")" => true
+      | _ => false
+      }
     while index.contents < length {
       let character = source->String.charAt(index.contents)
       let templateDepth = if templateCount.contents > 0 {
@@ -390,6 +486,12 @@ module GeneratedName = {
         None
       }
       switch templateDepth {
+      | _ if
+          isShell &&
+          pendingShellHeredocs.contents->Array.length > 0 &&
+          (character === "\n" || character === "\r") =>
+        index := skipShellHeredocBodies(index.contents)
+        pendingShellHeredocs := []
       | _ if isShell && character === "$" && source->String.charAt(index.contents + 1) === "{" =>
         shellParameterDepth := shellParameterDepth.contents + 1
         index := index.contents + 2
@@ -518,7 +620,28 @@ module GeneratedName = {
               index := index.contents + 1
             }
           }
-        } else if character === "\"" || character === "'" || (isShell && character === "`") {
+        } else if (
+          isShell &&
+          character === "<" &&
+          source->String.charAt(index.contents + 1) === "<" &&
+          source->String.charAt(index.contents + 2) !== "<"
+        ) {
+          switch parseShellHeredoc(index.contents) {
+          | Some((delimiter, stripTabs, next)) =>
+            pendingShellHeredocs.contents->Array.push((delimiter, stripTabs))
+            index := next
+          | None => index := index.contents + 1
+          }
+        } else if isShell && character === "\\" {
+          index := if index.contents + 2 < length {
+              index.contents + 2
+            } else {
+              length
+            }
+        } else if isShell && character === "`" {
+          // Backtick contents are executable shell, so keep scanning them for comments.
+          index := index.contents + 1
+        } else if character === "\"" || character === "'" {
           let quote = character
           let escapesWithBackslash =
             isJavaScript ||
@@ -550,7 +673,10 @@ module GeneratedName = {
           }
         } else {
           let lineComment =
-            (isHash && shellParameterDepth.contents === 0 && character === "#") ||
+            (isHash &&
+            shellParameterDepth.contents === 0 &&
+            character === "#" &&
+            (!isShell || isShellCommentStart(index.contents))) ||
             isJavaScript &&
             character === "/" &&
             source->String.charAt(index.contents + 1) === "/" ||

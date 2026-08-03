@@ -545,6 +545,82 @@ let extract_name_directive ~syntax source =
       line_end (index + 1)
     else index
   in
+  let next_line_start index =
+    if index < length && Char.equal source.[index] '\r'
+       && index + 1 < length && Char.equal source.[index + 1] '\n'
+    then index + 2
+    else if index < length then index + 1
+    else index
+  in
+  let shell_heredoc index =
+    let cursor = ref (index + 2) in
+    let strip_tabs = !cursor < length && Char.equal source.[!cursor] '-' in
+    if strip_tabs then incr cursor;
+    while !cursor < length && (Char.equal source.[!cursor] ' ' || Char.equal source.[!cursor] '\t') do
+      incr cursor
+    done;
+    if !cursor >= length then None
+    else
+      match source.[!cursor] with
+      | ('"' | '\'') as quote ->
+          let delimiter_start = !cursor + 1 in
+          cursor := delimiter_start;
+          while !cursor < length && not (Char.equal source.[!cursor] quote) do
+            incr cursor
+          done;
+          if !cursor < length then
+            Some
+              ( String.sub source delimiter_start (!cursor - delimiter_start),
+                strip_tabs,
+                !cursor + 1 )
+          else None
+      | _ ->
+          let delimiter_start = !cursor in
+          let is_delimiter_end = function
+            | ' ' | '\t' | '\r' | '\n' | ';' | '&' | '|' | '<' | '>' | '(' | ')' -> true
+            | _ -> false
+          in
+          while !cursor < length && not (is_delimiter_end source.[!cursor]) do
+            incr cursor
+          done;
+          if !cursor > delimiter_start then
+            Some
+              ( String.sub source delimiter_start (!cursor - delimiter_start),
+                strip_tabs,
+                !cursor )
+          else None
+  in
+  let skip_shell_heredoc_bodies index heredocs =
+    let cursor = ref (next_line_start index) in
+    List.iter
+      (fun (delimiter, strip_tabs) ->
+        let found = ref false in
+        while !cursor < length && not !found do
+          let line_start = !cursor in
+          let line_end_ = line_end line_start in
+          let comparison_start = ref line_start in
+          if strip_tabs then
+            while !comparison_start < line_end_
+                  && Char.equal source.[!comparison_start] '\t'
+            do
+              incr comparison_start
+            done;
+          cursor := next_line_start line_end_;
+          if String.equal
+               (String.sub source !comparison_start (line_end_ - !comparison_start))
+               delimiter
+          then found := true
+        done)
+      heredocs;
+    !cursor
+  in
+  let is_shell_comment_start index =
+    index = 0
+    ||
+    match source.[index - 1] with
+    | ' ' | '\t' | '\r' | '\n' | ';' | '&' | '|' | '(' | ')' -> true
+    | _ -> false
+  in
   let rec block_end index depth =
     if index >= length then (index, depth)
     else if is_postgresql && starts_with_at source index "/*" then
@@ -557,8 +633,15 @@ let extract_name_directive ~syntax source =
     List.rev_append (names_in_comment (String.sub source start (end_ - start))) names
   in
   let shell_parameter_depth = ref 0 in
+  let pending_shell_heredocs = ref [] in
   let rec loop index names template_depths =
     if index >= length then List.rev names
+    else if is_shell && !pending_shell_heredocs <> []
+            && (Char.equal source.[index] '\n' || Char.equal source.[index] '\r')
+    then
+      let next = skip_shell_heredoc_bodies index !pending_shell_heredocs in
+      pending_shell_heredocs := [];
+      loop next names template_depths
     else if is_shell && starts_with_at source index "${" then (
       incr shell_parameter_depth;
       loop (index + 2) names template_depths)
@@ -604,7 +687,19 @@ let extract_name_directive ~syntax source =
               loop
                 (skip_triple_quoted (index + 3) delimiter false)
                 names template_depths
-          | (('"' | '\'') as quote) | ('`' as quote) when not (Char.equal quote '`') || is_shell ->
+          | '<' when is_shell && starts_with_at source index "<<"
+                     && not (starts_with_at source index "<<<") -> (
+              match shell_heredoc index with
+              | Some (delimiter, strip_tabs, next) ->
+                  pending_shell_heredocs :=
+                    !pending_shell_heredocs @ [ (delimiter, strip_tabs) ];
+                  loop next names template_depths
+              | None -> loop (index + 1) names template_depths)
+          | '\\' when is_shell -> loop (min (index + 2) length) names template_depths
+          | '`' when is_shell ->
+              (* Backtick contents are executable shell, so keep scanning them. *)
+              loop (index + 1) names template_depths
+          | (('"' | '\'') as quote) ->
               let backslash_escapes =
                 is_javascript || is_python || (is_shell && not (Char.equal quote '\''))
                 || (Char.equal quote '\'' && index > 0
@@ -615,7 +710,8 @@ let extract_name_directive ~syntax source =
               loop
                 (skip_quoted (index + 1) quote ~backslash_escapes false)
                 names template_depths
-          | '#' when is_hash && !shell_parameter_depth = 0 ->
+          | '#' when is_hash && !shell_parameter_depth = 0
+                     && (not is_shell || is_shell_comment_start index) ->
               let end_ = line_end (index + 1) in
               loop end_ (add_comment (index + 1) end_ names) template_depths
           | '/' when is_javascript && starts_with_at source index "//" ->
