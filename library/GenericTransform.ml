@@ -40,7 +40,7 @@ let literal_source ~loc payload =
 
 let target ~loc ~file_name ~extension ~payload ~transform_mode =
   try
-    match NamedGeneration.for_extension ~source_file:file_name extension with
+    match NamedGeneration.for_extension extension with
     | Sequential -> sequential_target ~file_name ~extension ~transform_mode
     | Regex _ as generated_name ->
         let source = literal_source ~loc payload in

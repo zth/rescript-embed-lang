@@ -199,14 +199,8 @@ await client->run(Ga4Properties.default, variables)
 
 Generation must run before ReScript compilation. There are no source hashes in the generated API or PPX target; operation names provide stable generated filenames and module references.
 
-The generator writes the versioned PPX configuration itself, so the regular expression is not duplicated in `rescript.json`:
-
-```bash
-my-generator generate --src ./src --output ./lib/bs \
-  --embed-lang-config ./lib/bs/rescript-embed-lang.json
-```
-
-Pass that file explicitly to the PPX:
+Pass each named extension's configuration directly to the PPX. Repeat
+`-embed-lang-generated-name-regex` when a project uses multiple named extensions:
 
 ```json
 {
@@ -214,12 +208,24 @@ Pass that file explicitly to the PPX:
     [
       "rescript-embed-lang/ppx",
       "-enable-generic-transform",
-      "-embed-lang-config",
-      "./lib/bs/rescript-embed-lang.json"
+      "-embed-lang-generated-name-regex",
+      "gqlExternalSchema",
+      "XlsgXHRdKig_OnF1ZXJ5fG11dGF0aW9ufHN1YnNjcmlwdGlvbilbIFx0XHJcbl0rKFtfQS1aYS16XVtfMC05QS1aYS16XSop",
+      "m",
+      "numbered",
+      "1",
+      "exactlyOne"
     ]
   ]
 }
 ```
+
+The arguments are, in order: extension, base64url-encoded ECMAScript pattern,
+flags, capture kind (`numbered` or `named`), capture value, and cardinality
+(`exactlyOne` or `first`). The pattern uses base64url because ReScript passes PPX
+flags through a shell command without quoting arbitrary values. The PPX receives
+all configuration directly and performs no configuration-file I/O. Use `-` for
+the flags argument when the regular expression has no flags.
 
 Generation is staged before commit, detects case-insensitive and user-module collisions, removes only files recorded in its ownership index, and includes extra emitted artifacts in the same transaction. Watch runs are serialized and coalesced.
 

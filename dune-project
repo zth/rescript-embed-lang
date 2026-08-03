@@ -14,4 +14,4 @@
    (>= 3.8))
   ppxlib
   (quickjs (= 0.5.1))
-  yojson))
+  (yojson :with-test)))

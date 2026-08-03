@@ -10,113 +10,86 @@ type generated_name =
       cardinality : cardinality;
     }
 
-type config = { version : int; extensions : (string, generated_name) Hashtbl.t }
-
-let config_version = 1
-let config_path = ref None
-let loaded_config = ref None
+let extensions = Hashtbl.create 8
 let regexp_cache = Hashtbl.create 8
 let compiled_regexp_count_ref = ref 0
 let compiled_regexp_count () = !compiled_regexp_count_ref
 
-let set_config_path path =
-  config_path := Some path;
-  loaded_config := None
-
-let member name json = Yojson.Safe.Util.member name json
-
-let string_member name json =
-  match member name json with
-  | `String value -> value
-  | _ -> failwith (Printf.sprintf "missing or invalid string field %S" name)
-
-let int_member name json =
-  match member name json with
-  | `Int value -> value
-  | _ -> failwith (Printf.sprintf "missing or invalid integer field %S" name)
-
-let parse_capture json =
-  match string_member "kind" json with
-  | "numbered" -> Numbered (int_member "index" json)
-  | "named" -> Named (string_member "name" json)
+let capture_of_args ~kind ~value =
+  match kind with
+  | "numbered" -> (
+      match int_of_string_opt value with
+      | Some index when index >= 0 -> Numbered index
+      | _ ->
+          failwith
+            (Printf.sprintf
+               "invalid numbered capture %S; expected a non-negative integer" value))
+  | "named" when not (String.equal value "") -> Named value
+  | "named" -> failwith "invalid named capture; expected a non-empty name"
   | kind -> failwith (Printf.sprintf "unsupported capture kind %S" kind)
 
-let parse_cardinality = function
+let cardinality_of_arg = function
   | "exactlyOne" -> Exactly_one
   | "first" -> First
   | value -> failwith (Printf.sprintf "unsupported cardinality %S" value)
 
-let parse_generated_name json =
-  match string_member "kind" json with
-  | "sequential" -> Sequential
-  | "regex" ->
-      Regex
-        {
-          pattern = string_member "pattern" json;
-          flags = string_member "flags" json;
-          capture = parse_capture (member "capture" json);
-          cardinality = parse_cardinality (string_member "cardinality" json);
-        }
-  | kind -> failwith (Printf.sprintf "unsupported generatedName kind %S" kind)
+let base64url_value = function
+  | 'A' .. 'Z' as character -> Char.code character - Char.code 'A'
+  | 'a' .. 'z' as character -> Char.code character - Char.code 'a' + 26
+  | '0' .. '9' as character -> Char.code character - Char.code '0' + 52
+  | '-' -> 62
+  | '_' -> 63
+  | character ->
+      failwith
+        (Printf.sprintf "invalid base64url character %C in generated-name pattern"
+           character)
 
-let load_config path =
-  let json = Yojson.Safe.from_file path in
-  let version = int_member "version" json in
-  if version <> config_version then
-    failwith
-      (Printf.sprintf
-         "unsupported embed-language config version %d (this PPX supports version %d)"
-         version config_version);
-  let extensions_json = member "extensions" json in
-  let extensions = Hashtbl.create 8 in
-  Yojson.Safe.Util.to_assoc extensions_json
-  |> List.iter (fun (extension, extension_json) ->
-         let generated_name =
-           parse_generated_name (member "generatedName" extension_json)
-         in
-         Hashtbl.replace extensions extension generated_name);
-  { version; extensions }
+let decode_base64url input =
+  let length = String.length input in
+  if length mod 4 = 1 then
+    failwith "invalid base64url generated-name pattern length";
+  let output = Buffer.create ((length * 3) / 4) in
+  let rec decode offset =
+    if offset < length then (
+      let remaining = length - offset in
+      let first = base64url_value input.[offset] in
+      let second = base64url_value input.[offset + 1] in
+      Buffer.add_char output (Char.chr ((first lsl 2) lor (second lsr 4)));
+      if remaining > 2 then (
+        let third = base64url_value input.[offset + 2] in
+        Buffer.add_char output
+          (Char.chr (((second land 15) lsl 4) lor (third lsr 2)));
+        if remaining > 3 then (
+          let fourth = base64url_value input.[offset + 3] in
+          Buffer.add_char output
+            (Char.chr (((third land 3) lsl 6) lor fourth))));
+      decode (offset + 4))
+  in
+  decode 0;
+  Buffer.contents output
 
-let rec find_config_from directory relative_path =
-  let candidate = Filename.concat directory relative_path in
-  if Sys.file_exists candidate then Some candidate
-  else
-    let parent = Filename.dirname directory in
-    if String.equal parent directory then None
-    else find_config_from parent relative_path
+let add_regex ~extension ~pattern ~flags ~capture_kind ~capture_value ~cardinality =
+  if String.equal extension "" then
+    failwith "invalid generated-name extension; expected a non-empty name";
+  let generated_name =
+    Regex
+      {
+        pattern;
+        flags;
+        capture = capture_of_args ~kind:capture_kind ~value:capture_value;
+        cardinality = cardinality_of_arg cardinality;
+      }
+  in
+  Hashtbl.replace extensions extension generated_name
 
-let resolve_config_path ~source_file path =
-  if not (Filename.is_relative path) then path
-  else
-    match find_config_from (Filename.dirname source_file) path with
-    | Some resolved -> resolved
-    | None ->
-        failwith
-          (Printf.sprintf
-             "cannot resolve relative -embed-lang-config %S from source file %S or any parent directory"
-             path source_file)
+let add_regex_base64url ~extension ~pattern ~flags ~capture_kind ~capture_value
+    ~cardinality =
+  add_regex ~extension ~pattern:(decode_base64url pattern)
+    ~flags:(if String.equal flags "-" then "" else flags)
+    ~capture_kind ~capture_value ~cardinality
 
-let get_config ~source_file =
-  match !config_path with
-  | None -> { version = config_version; extensions = Hashtbl.create 0 }
-  | Some configured_path ->
-      let resolved_path = resolve_config_path ~source_file configured_path in
-      (match !loaded_config with
-      | Some (loaded_path, config) when String.equal loaded_path resolved_path -> config
-      | _ ->
-          let config =
-            try load_config resolved_path
-            with exn ->
-              failwith
-                (Printf.sprintf "cannot load -embed-lang-config %S: %s" resolved_path
-                   (Printexc.to_string exn))
-          in
-          loaded_config := Some (resolved_path, config);
-          config)
-
-let for_extension ~source_file extension =
-  Hashtbl.find_opt (get_config ~source_file).extensions extension
-  |> Option.value ~default:Sequential
+let for_extension extension =
+  Hashtbl.find_opt extensions extension |> Option.value ~default:Sequential
 
 let regexp_key pattern flags = pattern ^ "\000" ^ flags
 

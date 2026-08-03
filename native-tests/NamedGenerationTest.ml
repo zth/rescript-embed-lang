@@ -88,6 +88,19 @@ let test_stable_target () =
   if not (String.equal actual "Operations__fixture__GetThing") then
     fail "unexpected stable named target %S" actual
 
+let test_cli_configuration () =
+  Named.add_regex_base64url ~extension:"configured"
+    ~pattern:"b3BlcmF0aW9uIChbQS1aYS16XSsp" ~flags:"-" ~capture_kind:"numbered"
+    ~capture_value:"1" ~cardinality:"first";
+  let actual =
+    Named.extract_name ~extension:"configured" ~source:"operation FromCli"
+      (Named.for_extension "configured")
+  in
+  if actual <> Some "FromCli" then fail "unexpected CLI-configured name";
+  match Named.for_extension "unconfigured" with
+  | Named.Sequential -> ()
+  | Named.Regex _ -> fail "unconfigured extensions should remain sequential"
+
 let test_timeout () =
   let config =
     Named.Regex
@@ -111,5 +124,6 @@ let () =
   |> Yojson.Safe.Util.to_list |> List.iter run_case;
   test_cache ();
   test_stable_target ();
+  test_cli_configuration ();
   test_timeout ();
   Printf.printf "native named-generation corpus: ok\n"

@@ -4,6 +4,7 @@
 
 - Add statically linked Linux ARM64 PPX builds and select the ARM64 binary during npm installation.
 - Remove a generator's ownership index when its final owned output is removed.
+- Configure named generation with native PPX arguments instead of generated JSON files.
 
 ## 0.6.0
 
