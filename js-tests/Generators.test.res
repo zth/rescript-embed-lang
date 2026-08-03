@@ -164,6 +164,7 @@ describe("named generator integration", () => {
     let src = Path.join([root, "src"])
     let output = Path.join([root, "generated"])
     let config = Path.join([root, "embed-config.json"])
+    let ownershipIndex = Path.join([output, ".rescript-embed-lang-fixture.json"])
     Fs.mkdirSync(src)
     Fs.mkdirSync(output)
     let source = Path.join([src, "Operations.res"])
@@ -180,6 +181,7 @@ describe("named generator integration", () => {
       ok(Fs.existsSync(alpha), ~message="named output was not generated")
       let alphaArtifact = Path.join([output, "Operations__fixture__Alpha.txt"])
       ok(Fs.existsSync(alphaArtifact), ~message="extra artifact was not generated")
+      ok(Fs.existsSync(ownershipIndex), ~message="ownership index was not generated")
       let alphaContent = alpha->Fs.readFileSync->NodeJs.Buffer.toString
       equal(
         alphaContent,
@@ -196,7 +198,9 @@ describe("named generator integration", () => {
       write(source, "module Beta = %generated.fixture(\x60query Beta { viewer { id } }\x60)\n")
       await run()
       let beta = Path.join([output, "Operations__fixture__Beta.res"])
+      let betaArtifact = Path.join([output, "Operations__fixture__Beta.txt"])
       ok(Fs.existsSync(beta), ~message="renamed output was not generated")
+      ok(Fs.existsSync(betaArtifact), ~message="renamed extra artifact was not generated")
       ok(!Fs.existsSync(alpha), ~message="stale owned output was not removed")
       ok(!Fs.existsSync(alphaArtifact), ~message="stale extra artifact was not removed")
 
@@ -275,6 +279,18 @@ describe("named generator integration", () => {
         userModule->Fs.readFileSync->NodeJs.Buffer.toString,
         "let userModule = true\n",
         ~message="user source module was modified",
+      )
+
+      write(source, "let noEmbeds = true\n")
+      await run()
+      ok(!Fs.existsSync(beta), ~message="last owned output was not removed")
+      ok(!Fs.existsSync(betaArtifact), ~message="last owned artifact was not removed")
+      ok(!Fs.existsSync(ownershipIndex), ~message="empty ownership index was not removed")
+      ok(Fs.existsSync(config), ~message="PPX config should remain available")
+      equal(
+        userOwned->Fs.readFileSync->NodeJs.Buffer.toString,
+        "let userFile = true\n",
+        ~message="user-owned file was removed during empty generation",
       )
     } catch {
     | JsExn(error) =>

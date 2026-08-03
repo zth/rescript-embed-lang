@@ -623,6 +623,7 @@ let commitFiles = async (
   let affected = Set.fromArray(
     [...previousSet->Set.toArray, ...files->Array.map(file => file.fileName)],
   )
+  let shouldWriteIndex = files->Array.length > 0
 
   try {
     files->Array.forEach(file => {
@@ -630,13 +631,18 @@ let commitFiles = async (
       staged->makeParentDirectory
       SyncFs.writeText(staged, file.content)
     })
-    let indexJson =
-      Dict.fromArray([
-        ("version", JSON.Encode.int(configVersion)),
-        ("extension", JSON.Encode.string(extension)),
-        ("files", files->Array.map(file => file.fileName)->JSON.Encode.stringArray),
-      ])->JSON.Encode.object
-    SyncFs.writeText(Path.join([stage, "index.json"]), indexJson->JSON.stringify(~space=2) ++ "\n")
+    if shouldWriteIndex {
+      let indexJson =
+        Dict.fromArray([
+          ("version", JSON.Encode.int(configVersion)),
+          ("extension", JSON.Encode.string(extension)),
+          ("files", files->Array.map(file => file.fileName)->JSON.Encode.stringArray),
+        ])->JSON.Encode.object
+      SyncFs.writeText(
+        Path.join([stage, "index.json"]),
+        indexJson->JSON.stringify(~space=2) ++ "\n",
+      )
+    }
     configPath->makeParentDirectory
     SyncFs.writeText(configTemporary, configContent)
 
@@ -660,7 +666,9 @@ let commitFiles = async (
       target->makeParentDirectory
       SyncFs.rename(Path.join([stage, file.fileName]), target)
     })
-    SyncFs.rename(Path.join([stage, "index.json"]), indexPath)
+    if shouldWriteIndex {
+      SyncFs.rename(Path.join([stage, "index.json"]), indexPath)
+    }
     SyncFs.rename(configTemporary, configPath)
 
     SyncFs.remove(configBackup, {force: true})
