@@ -11,6 +11,11 @@
   },
   "suffix": ".mjs",
   "ppx-flags": [
-    ["rescript-embed-lang/ppx", "-enable-generic-transform", "-embed-lang-config", "./rescript-embed-lang.json"]
+    [
+      "rescript-embed-lang/ppx",
+      "-enable-generic-transform",
+      "-embed-lang-config",
+      "./rescript-embed-lang.json"
+    ]
   ]
 }

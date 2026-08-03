@@ -44,20 +44,11 @@ module NamedGenerationFixture = {
   @live
   type fixtureCase = {
     label: string,
-    pattern: string,
-    flags: string,
-    captureKind: string,
-    captureValue: string,
-    cardinality: string,
+    strategy: string,
     source: string,
-    expectedName?: string,
-    errorContains?: string,
+    resultKind: string,
+    resultValue: string,
   }
-
-  @live
-  type fixture = {version: int, cases: array<fixtureCase>}
-
-  external decode: JSON.t => fixture = "%identity"
 
   @module("node:assert/strict")
   external equal: ('a, 'a, ~message: string=?) => unit = "equal"
@@ -67,41 +58,55 @@ module NamedGenerationFixture = {
 
   let fixturePath = Path.resolve([
     NodeJs.Process.process->NodeJs.Process.cwd,
-    "fixtures/named-generation.json",
+    "fixtures/named-generation.tsv",
   ])
 
-  let fixture =
+  let fixture: array<fixtureCase> =
     fixturePath
     ->Fs.readFileSync
     ->NodeJs.Buffer.toString
-    ->JSON.parseOrThrow
-    ->decode
+    ->String.split("\n")
+    ->Array.filterMap(line => {
+      let line = line->String.trim
+      if line === "" || line->String.startsWith("#") {
+        None
+      } else {
+        let fields = line->String.split("\t")
+        if fields->Array.length !== 5 {
+          panic(`invalid named-generation fixture row: ${line}`)
+        }
+        let getField = index =>
+          fields[index]
+          ->Option.getOrThrow(~message=`missing field ${index->Int.toString}`)
+          ->(
+            value =>
+              JSON.parseOrThrow(`"${value}"`)
+              ->JSON.Decode.string
+              ->Option.getOrThrow(~message=`invalid escaped field ${index->Int.toString}`)
+          )
+        Some({
+          label: getField(0),
+          strategy: getField(1),
+          source: getField(2),
+          resultKind: getField(3),
+          resultValue: getField(4),
+        })
+      }
+    })
 }
 
 describe("named generation shared corpus", () => {
   open NamedGenerationFixture
 
-  fixture.cases->Array.forEach(case => {
+  fixture->Array.forEach(case => {
     test(
       case.label,
       () => {
-        let capture = switch case.captureKind {
-        | "numbered" =>
-          RescriptEmbedLang.Numbered(case.captureValue->Int.fromString->Option.getOrThrow)
-        | "named" => RescriptEmbedLang.Named(case.captureValue)
-        | kind => panic(`unknown capture kind ${kind}`)
+        let config = switch case.strategy {
+        | "graphqlDefinition" => RescriptEmbedLang.GraphqlDefinition
+        | "nameDirective" => RescriptEmbedLang.NameDirective
+        | strategy => panic(`unknown naming strategy ${strategy}`)
         }
-        let cardinality = switch case.cardinality {
-        | "exactlyOne" => RescriptEmbedLang.ExactlyOne
-        | "first" => RescriptEmbedLang.First
-        | value => panic(`unknown cardinality ${value}`)
-        }
-        let config = RescriptEmbedLang.Regex({
-          pattern: case.pattern,
-          flags: case.flags,
-          capture,
-          cardinality,
-        })
         let result = try {
           Ok(
             RescriptEmbedLang.GeneratedName.extract(
@@ -114,18 +119,103 @@ describe("named generation shared corpus", () => {
         | JsExn(error) => Error(error->JsExn.message->Option.getOr("unknown error"))
         }
 
-        switch (case.expectedName, case.errorContains, result) {
-        | (Some(expected), _, Ok(actual)) => equal(actual, Some(expected), ~message=case.label)
-        | (_, Some(expectedError), Error(message)) =>
-          ok(message->String.includes(expectedError), ~message=`${case.label}: ${message}`)
-        | (_, Some(expectedError), Ok(_)) =>
-          panic(`${case.label}: expected error containing "${expectedError}"`)
-        | (Some(expected), _, Error(message)) =>
-          panic(`${case.label}: expected "${expected}", got error: ${message}`)
-        | _ => panic(`${case.label}: fixture must define expectedName or errorContains`)
+        switch (case.resultKind, result) {
+        | ("name", Ok(actual)) => equal(actual, Some(case.resultValue), ~message=case.label)
+        | ("error", Error(message)) =>
+          ok(message->String.includes(case.resultValue), ~message=`${case.label}: ${message}`)
+        | ("error", Ok(_)) =>
+          panic(`${case.label}: expected error containing "${case.resultValue}"`)
+        | ("name", Error(message)) =>
+          panic(`${case.label}: expected "${case.resultValue}", got error: ${message}`)
+        | (resultKind, _) => panic(`${case.label}: unknown result kind ${resultKind}`)
         }
       },
     )
+  })
+})
+
+describe("regex naming", () => {
+  test("supports numbered captures and cardinality", () => {
+    let config = RescriptEmbedLang.Regex({
+      pattern: "query[ \\t]+([_A-Za-z][_0-9A-Za-z]*)",
+      flags: "",
+      capture: Numbered(1),
+      cardinality: ExactlyOne,
+    })
+    let result = RescriptEmbedLang.GeneratedName.extract(
+      ~extension="fixture",
+      ~source="query GetThing { thing }",
+      config,
+    )
+    NamedGenerationFixture.equal(result, Some("GetThing"))
+  })
+
+  test("supports named captures", () => {
+    let config = RescriptEmbedLang.Regex({
+      pattern: "^mutation[ \\t]+(?<name>[_A-Za-z][_0-9A-Za-z]*)",
+      flags: "",
+      capture: Named("name"),
+      cardinality: First,
+    })
+    let result = RescriptEmbedLang.GeneratedName.extract(
+      ~extension="fixture",
+      ~source="mutation UpdateThing { updateThing }",
+      config,
+    )
+    NamedGenerationFixture.equal(result, Some("UpdateThing"))
+  })
+
+  test("enforces ExactlyOne", () => {
+    let config = RescriptEmbedLang.Regex({
+      pattern: "query[ \\t]+([_A-Za-z][_0-9A-Za-z]*)",
+      flags: "",
+      capture: Numbered(1),
+      cardinality: ExactlyOne,
+    })
+    let message = try {
+      RescriptEmbedLang.GeneratedName.extract(
+        ~extension="fixture",
+        ~source="query One { one } query Two { two }",
+        config,
+      )->ignore
+      ""
+    } catch {
+    | JsExn(error) => error->JsExn.message->Option.getOr("")
+    }
+    NamedGenerationFixture.ok(message->String.includes("matched more than once"))
+  })
+
+  test("advances zero-width Unicode matches by code point", () => {
+    let config = RescriptEmbedLang.Regex({
+      pattern: "^(?=😀(?<name>Foo))",
+      flags: "u",
+      capture: Named("name"),
+      cardinality: ExactlyOne,
+    })
+    let result = RescriptEmbedLang.GeneratedName.extract(
+      ~extension="fixture",
+      ~source="😀Foo",
+      config,
+    )
+    NamedGenerationFixture.equal(result, Some("Foo"))
+  })
+})
+
+describe("generator configuration", () => {
+  test("rejects named generation for first-class PPX extensions", () => {
+    let message = try {
+      RescriptEmbedLang.make(
+        ~extensionPattern=FirstClass("edgeql"),
+        ~generatedName=NameDirective,
+        ~setup=RescriptEmbedLang.defaultSetup,
+        ~generate=async _ => Ok(NoModuleName({content: "let default = ()"})),
+        ~cliHelpText="fixture generator",
+      )->ignore
+      ""
+    } catch {
+    | JsExn(error) => error->JsExn.message->Option.getOr("")
+    }
+    NamedGenerationFixture.ok(message->String.includes("only supports Sequential"))
   })
 })
 
@@ -134,15 +224,9 @@ module NamedGeneratorIntegration = {
   @module("node:fs") external mkdtempSync: string => string = "mkdtempSync"
   @module("node:fs") external rmSync: (string, rmOptions) => unit = "rmSync"
   let write = (path, content) => Fs.writeFileSync(path, NodeJs.Buffer.fromString(content))
-  let pattern = "^[ \\t]*(?:query|mutation|subscription)[ \\t\\r\\n]+([_A-Za-z][_0-9A-Za-z]*)"
   let embed = RescriptEmbedLang.make(
     ~extensionPattern=Generic("fixture"),
-    ~generatedName=Regex({
-      pattern,
-      flags: "m",
-      capture: Numbered(1),
-      cardinality: ExactlyOne,
-    }),
+    ~generatedName=GraphqlDefinition,
     ~setup=RescriptEmbedLang.defaultSetup,
     ~generate=async ({content, emitExtraFile}) =>
       if content->String.includes("FAIL_GENERATION") {
@@ -163,15 +247,13 @@ describe("named generator integration", () => {
     let root = mkdtempSync(Path.join([NodeJs.Os.tmpdir(), "rescript-embed-lang-"]))
     let src = Path.join([root, "src"])
     let output = Path.join([root, "generated"])
-    let config = Path.join([root, "embed-config.json"])
+    let ppxConfigPath = Path.join([output, "rescript-embed-lang.json"])
+    let ownedFilesIndexPath = Path.join([output, ".rescript-embed-lang-fixture.json"])
     Fs.mkdirSync(src)
     Fs.mkdirSync(output)
     let source = Path.join([src, "Operations.res"])
     let run = () =>
-      RescriptEmbedLang.runCli(
-        embed,
-        ~args=["generate", "--src", src, "--output", output, "--embed-lang-config", config],
-      )
+      RescriptEmbedLang.runCli(embed, ~args=["generate", "--src", src, "--output", output])
 
     try {
       write(source, "module Alpha = %generated.fixture(\x60query Alpha { viewer { id } }\x60)\n")
@@ -180,38 +262,30 @@ describe("named generator integration", () => {
       ok(Fs.existsSync(alpha), ~message="named output was not generated")
       let alphaArtifact = Path.join([output, "Operations__fixture__Alpha.txt"])
       ok(Fs.existsSync(alphaArtifact), ~message="extra artifact was not generated")
+      ok(Fs.existsSync(ownedFilesIndexPath), ~message="owned-files index was not generated")
       let alphaContent = alpha->Fs.readFileSync->NodeJs.Buffer.toString
       equal(
         alphaContent,
         "// @generated by rescript-embed-lang v1\nlet default = 42\n",
         ~message="named generated content should be exposed at the stable module root",
       )
-      ok(Fs.existsSync(config), ~message="PPX config was not written")
-      let configContent = config->Fs.readFileSync->NodeJs.Buffer.toString
+      ok(Fs.existsSync(ppxConfigPath), ~message="generated PPX config was not written")
       ok(
-        configContent->String.includes("\"kind\": \"regex\""),
-        ~message="named config was not serialized",
+        ppxConfigPath
+        ->Fs.readFileSync
+        ->NodeJs.Buffer.toString
+        ->String.includes("graphqlDefinition"),
+        ~message="generated PPX config did not contain the naming strategy",
       )
 
       write(source, "module Beta = %generated.fixture(\x60query Beta { viewer { id } }\x60)\n")
       await run()
       let beta = Path.join([output, "Operations__fixture__Beta.res"])
+      let betaArtifact = Path.join([output, "Operations__fixture__Beta.txt"])
       ok(Fs.existsSync(beta), ~message="renamed output was not generated")
+      ok(Fs.existsSync(betaArtifact), ~message="renamed extra artifact was not generated")
       ok(!Fs.existsSync(alpha), ~message="stale owned output was not removed")
       ok(!Fs.existsSync(alphaArtifact), ~message="stale extra artifact was not removed")
-
-      let validConfig = config->Fs.readFileSync->NodeJs.Buffer.toString
-      write(config, "{invalid json\n")
-      write(source, "module Gamma = %generated.fixture(\x60query Gamma { viewer { id } }\x60)\n")
-      let configFailed = ref(false)
-      try {
-        await run()
-      } catch {
-      | JsExn(_) => configFailed := true
-      }
-      ok(configFailed.contents, ~message="invalid config should reject")
-      ok(Fs.existsSync(beta), ~message="config failure replaced the last successful output")
-      write(config, validConfig)
 
       write(
         source,
@@ -275,6 +349,21 @@ describe("named generator integration", () => {
         userModule->Fs.readFileSync->NodeJs.Buffer.toString,
         "let userModule = true\n",
         ~message="user source module was modified",
+      )
+
+      write(source, "let noEmbeds = true\n")
+      await run()
+      ok(!Fs.existsSync(beta), ~message="last owned output was not removed")
+      ok(!Fs.existsSync(betaArtifact), ~message="last owned artifact was not removed")
+      ok(!Fs.existsSync(ownedFilesIndexPath), ~message="empty owned-files index was not removed")
+      ok(
+        Fs.existsSync(ppxConfigPath),
+        ~message="PPX config should remain when an extension currently has no embeds",
+      )
+      equal(
+        userOwned->Fs.readFileSync->NodeJs.Buffer.toString,
+        "let userFile = true\n",
+        ~message="user-owned file was removed during empty generation",
       )
     } catch {
     | JsExn(error) =>

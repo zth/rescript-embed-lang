@@ -3,6 +3,8 @@ type capture = Numbered of int | Named of string
 
 type generated_name =
   | Sequential
+  | Graphql_definition
+  | Name_directive
   | Regex of {
       pattern : string;
       flags : string;
@@ -10,14 +12,12 @@ type generated_name =
       cardinality : cardinality;
     }
 
-type config = { version : int; extensions : (string, generated_name) Hashtbl.t }
+type config = { extensions : (string, generated_name) Hashtbl.t }
 
 let config_version = 1
 let config_path = ref None
 let loaded_config = ref None
 let regexp_cache = Hashtbl.create 8
-let compiled_regexp_count_ref = ref 0
-let compiled_regexp_count () = !compiled_regexp_count_ref
 
 let set_config_path path =
   config_path := Some path;
@@ -49,6 +49,8 @@ let parse_cardinality = function
 let parse_generated_name json =
   match string_member "kind" json with
   | "sequential" -> Sequential
+  | "graphqlDefinition" -> Graphql_definition
+  | "nameDirective" -> Name_directive
   | "regex" ->
       Regex
         {
@@ -61,21 +63,22 @@ let parse_generated_name json =
 
 let load_config path =
   let json = Yojson.Safe.from_file path in
-  let version = int_member "version" json in
+  let version =
+    match member "version" json with
+    | `Int version -> version
+    | _ -> failwith "missing or invalid integer field \"version\""
+  in
   if version <> config_version then
     failwith
       (Printf.sprintf
          "unsupported embed-language config version %d (this PPX supports version %d)"
          version config_version);
-  let extensions_json = member "extensions" json in
   let extensions = Hashtbl.create 8 in
-  Yojson.Safe.Util.to_assoc extensions_json
+  Yojson.Safe.Util.to_assoc (member "extensions" json)
   |> List.iter (fun (extension, extension_json) ->
-         let generated_name =
-           parse_generated_name (member "generatedName" extension_json)
-         in
-         Hashtbl.replace extensions extension generated_name);
-  { version; extensions }
+         Hashtbl.replace extensions extension
+           (parse_generated_name (member "generatedName" extension_json)));
+  { extensions }
 
 let rec find_config_from directory relative_path =
   let candidate = Filename.concat directory relative_path in
@@ -88,17 +91,20 @@ let rec find_config_from directory relative_path =
 let resolve_config_path ~source_file path =
   if not (Filename.is_relative path) then path
   else
-    match find_config_from (Filename.dirname source_file) path with
-    | Some resolved -> resolved
-    | None ->
-        failwith
-          (Printf.sprintf
-             "cannot resolve relative -embed-lang-config %S from source file %S or any parent directory"
-             path source_file)
+    let from_cwd = Filename.concat (Sys.getcwd ()) path in
+    if Sys.file_exists from_cwd then from_cwd
+    else
+      match find_config_from (Filename.dirname source_file) path with
+      | Some resolved -> resolved
+      | None ->
+          failwith
+            (Printf.sprintf
+               "cannot resolve relative -embed-lang-config %S from the working directory, source file %S, or any parent directory"
+               path source_file)
 
 let get_config ~source_file =
   match !config_path with
-  | None -> { version = config_version; extensions = Hashtbl.create 0 }
+  | None -> { extensions = Hashtbl.create 0 }
   | Some configured_path ->
       let resolved_path = resolve_config_path ~source_file configured_path in
       (match !loaded_config with
@@ -128,7 +134,6 @@ let compile_regexp pattern flags =
       match Quickjs.RegExp.compile ~flags pattern with
       | Ok regexp ->
           Hashtbl.add regexp_cache key regexp;
-          incr compiled_regexp_count_ref;
           regexp
       | Error error ->
           failwith
@@ -168,21 +173,196 @@ let first_two_matches regexp source =
   in
   loop []
 
+let is_name_start = function
+  | 'A' .. 'Z' | 'a' .. 'z' | '_' -> true
+  | _ -> false
+
+let is_name_continue = function
+  | '0' .. '9' | 'A' .. 'Z' | 'a' .. 'z' | '_' -> true
+  | _ -> false
+
+let is_whitespace = function
+  | ' ' | '\t' | '\r' | '\n' -> true
+  | _ -> false
+
 let validate_name name =
   let length = String.length name in
-  let is_start = function
-    | 'A' .. 'Z' | 'a' .. 'z' | '_' -> true
-    | _ -> false
+  length > 0 && is_name_start name.[0]
+  && String.for_all is_name_continue (String.sub name 1 (length - 1))
+
+let starts_with_at source offset prefix =
+  let prefix_length = String.length prefix in
+  offset >= 0
+  && offset + prefix_length <= String.length source
+  && String.sub source offset prefix_length = prefix
+
+type graphql_token =
+  | Name of string
+  | Left_brace
+  | Right_brace
+  | Left_paren
+  | Right_paren
+  | Left_bracket
+  | Right_bracket
+  | Other
+
+let graphql_tokens source =
+  let length = String.length source in
+  let rec skip_line_comment index =
+    if index < length && source.[index] <> '\n' && source.[index] <> '\r' then
+      skip_line_comment (index + 1)
+    else index
   in
-  let is_continue = function
-    | '0' .. '9' | 'A' .. 'Z' | 'a' .. 'z' | '_' -> true
-    | _ -> false
+  let rec skip_quoted_string index escaped =
+    if index >= length then index
+    else if escaped then skip_quoted_string (index + 1) false
+    else
+      match source.[index] with
+      | '\\' -> skip_quoted_string (index + 1) true
+      | '"' -> index + 1
+      | _ -> skip_quoted_string (index + 1) false
   in
-  length > 0 && is_start name.[0]
-  && String.for_all is_continue (String.sub name 1 (length - 1))
+  let rec skip_block_string index =
+    if index >= length then index
+    else if starts_with_at source index "\\\"\"\"" then
+      skip_block_string (index + 4)
+    else if starts_with_at source index "\"\"\"" then index + 3
+    else skip_block_string (index + 1)
+  in
+  let rec name_end index =
+    if index < length && is_name_continue source.[index] then name_end (index + 1)
+    else index
+  in
+  let rec loop index tokens =
+    if index >= length then List.rev tokens
+    else
+      match source.[index] with
+      | character when is_whitespace character || character = ',' ->
+          loop (index + 1) tokens
+      | '#' -> loop (skip_line_comment (index + 1)) tokens
+      | '"' when starts_with_at source index "\"\"\"" ->
+          loop (skip_block_string (index + 3)) tokens
+      | '"' -> loop (skip_quoted_string (index + 1) false) tokens
+      | character when is_name_start character ->
+          let end_ = name_end (index + 1) in
+          loop end_ (Name (String.sub source index (end_ - index)) :: tokens)
+      | '{' -> loop (index + 1) (Left_brace :: tokens)
+      | '}' -> loop (index + 1) (Right_brace :: tokens)
+      | '(' -> loop (index + 1) (Left_paren :: tokens)
+      | ')' -> loop (index + 1) (Right_paren :: tokens)
+      | '[' -> loop (index + 1) (Left_bracket :: tokens)
+      | ']' -> loop (index + 1) (Right_bracket :: tokens)
+      | _ -> loop (index + 1) (Other :: tokens)
+  in
+  loop 0 []
+
+let extract_graphql_definition source =
+  let operations = ref [] in
+  let fragments = ref [] in
+  let depth = ref 0 in
+  let paren_depth = ref 0 in
+  let bracket_depth = ref 0 in
+  let awaiting_body = ref false in
+  let rec loop = function
+    | [] -> ()
+    | Left_paren :: rest ->
+        incr paren_depth;
+        loop rest
+    | Right_paren :: rest ->
+        if !paren_depth > 0 then decr paren_depth;
+        loop rest
+    | Left_bracket :: rest ->
+        incr bracket_depth;
+        loop rest
+    | Right_bracket :: rest ->
+        if !bracket_depth > 0 then decr bracket_depth;
+        loop rest
+    | Left_brace :: rest
+      when !depth = 0 && !paren_depth = 0 && !bracket_depth = 0 ->
+        if not !awaiting_body then operations := None :: !operations;
+        awaiting_body := false;
+        depth := 1;
+        loop rest
+    | Left_brace :: rest when !depth > 0 ->
+        incr depth;
+        loop rest
+    | Right_brace :: rest when !depth > 0 ->
+        decr depth;
+        loop rest
+    | Name ("query" | "mutation" | "subscription") :: rest
+      when !depth = 0 && not !awaiting_body ->
+        operations :=
+          (match rest with Name name :: _ -> Some name | _ -> None) :: !operations;
+        awaiting_body := true;
+        loop rest
+    | Name "fragment" :: rest when !depth = 0 && not !awaiting_body ->
+        (match rest with
+        | Name name :: _ when not (String.equal name "on") ->
+            fragments := name :: !fragments
+        | _ -> ());
+        awaiting_body := true;
+        loop rest
+    | _ :: rest -> loop rest
+  in
+  loop (graphql_tokens source);
+  match List.rev !operations with
+  | [ Some name ] -> name
+  | [ None ] ->
+      failwith "GraphQL document contains an anonymous operation; add an operation name"
+  | _ :: _ :: _ ->
+      failwith "GraphQL document contains multiple operations; expected exactly one"
+  | [] -> (
+      match List.rev !fragments with
+      | [ name ] -> name
+      | [] -> failwith "GraphQL document contains no named operation or fragment"
+      | _ ->
+          failwith
+            "GraphQL document contains multiple fragments and no operation; expected exactly one")
+
+let names_in_source source =
+  let length = String.length source in
+  let rec skip_whitespace index =
+    if index < length && is_whitespace source.[index] then skip_whitespace (index + 1)
+    else index
+  in
+  let rec name_end index =
+    if index < length && is_name_continue source.[index] then name_end (index + 1)
+    else index
+  in
+  let rec loop index names =
+    if index >= length then List.rev names
+    else if
+      source.[index] = '@'
+      && starts_with_at source (index + 1) "name"
+      && (index = 0 || not (is_name_continue source.[index - 1]))
+      && (index + 5 >= length || is_whitespace source.[index + 5])
+    then
+      let start = skip_whitespace (index + 5) in
+      if start < length && is_name_start source.[start] then
+        let end_ = name_end (start + 1) in
+        if
+          end_ < length
+          && not (is_whitespace source.[end_])
+          && not (starts_with_at source end_ "*/")
+        then
+          failwith
+            "invalid @name value; expected [_A-Za-z][_0-9A-Za-z]* followed by a boundary";
+        loop end_ (String.sub source start (end_ - start) :: names)
+      else loop (index + 5) names
+    else loop (index + 1) names
+  in
+  loop 0 []
+
+let extract_name_directive source =
+  match names_in_source source with
+  | [ name ] -> name
+  | [] -> failwith "no valid @name <identifier> directive was found"
+  | _ -> failwith "multiple @name <identifier> directives were found; expected exactly one"
 
 let extract_name ~extension ~source = function
   | Sequential -> None
+  | Graphql_definition -> Some (extract_graphql_definition source)
+  | Name_directive -> Some (extract_name_directive source)
   | Regex { pattern; flags; capture; cardinality } ->
       let regexp =
         compile_regexp pattern

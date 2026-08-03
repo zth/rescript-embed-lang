@@ -13,8 +13,8 @@ depends: [
   "ocaml" {>= "4.14.0" & < "5.1.0"}
   "dune" {>= "3.8"}
   "ppxlib"
-  "quickjs" {= "0.5.1"}
   "yojson"
+  "quickjs" {= "0.5.1"}
 ]
 # ReScript 12.3 emits an older binary AST; this fork retains its migration while supporting OCaml 5.0.
 pin-depends: [

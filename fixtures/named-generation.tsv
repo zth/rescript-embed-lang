@@ -1,0 +1,22 @@
+# label	strategy	source	resultKind	resultValue
+named query	graphqlDefinition	query GetThing { viewer { id } }	name	GetThing
+named mutation	graphqlDefinition	mutation UpdateThing { updateThing { id } }	name	UpdateThing
+named subscription	graphqlDefinition	subscription ThingChanged { thingChanged { id } }	name	ThingChanged
+operation with variables	graphqlDefinition	query GetThing($id: ID!, $input: Input = {limit: 1}) { thing(id: $id) { id } }	name	GetThing
+fragment before operation	graphqlDefinition	fragment ThingFields on Thing { id }\nquery GetThing { thing { ...ThingFields } }	name	GetThing
+fragment after operation	graphqlDefinition	query GetThing { thing { ...ThingFields } }\nfragment ThingFields on Thing { id }	name	GetThing
+lone fragment	graphqlDefinition	fragment ThingFields on Thing { id }	name	ThingFields
+keywords in comments and strings	graphqlDefinition	# query Fake { fake }\nquery Real { field(arg: \"fragment Fake on X\") }	name	Real
+anonymous operation	graphqlDefinition	query { viewer { id } }	error	anonymous operation
+anonymous shorthand	graphqlDefinition	{ viewer { id } }	error	anonymous operation
+multiple operations	graphqlDefinition	query One { one }\nquery Two { two }	error	multiple operations
+multiple fragments	graphqlDefinition	fragment One on Thing { id }\nfragment Two on Thing { id }	error	multiple fragments
+slash name directive	nameDirective	// @name jsThing\nconst value = 1	name	jsThing
+hash name directive	nameDirective	# @name pythonThing\nvalue = 1	name	pythonThing
+dash name directive	nameDirective	-- @name sqlThing\nselect 1	name	sqlThing
+block name directive	nameDirective	/* @name blockThing */\nconst value = 1	name	blockThing
+block name directive without closer whitespace	nameDirective	/* @name compactBlock*/	name	compactBlock
+multiline name directive	nameDirective	/* @name\n  multilineThing */	name	multilineThing
+invalid name suffix	nameDirective	// @name bad-name	error	invalid @name value
+missing name directive	nameDirective	select 1	error	no valid @name
+multiple name directives	nameDirective	# @name One\n# @name Two	error	multiple @name
