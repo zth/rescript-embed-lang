@@ -59,10 +59,12 @@ type capture = Numbered(int) | Named(string)
 /** Controls stable per-embed generated modules. Named value embeds resolve to the module's `default`; Sequential preserves the legacy M1/M2 layout. */
 type generatedName =
   | Sequential
+  | GraphqlDefinition
+  | NameDirective
   | Regex({pattern: string, flags: string, capture: capture, cardinality: cardinality})
 
 module GeneratedName: {
-  /** Extract and validate a deterministic name using ECMAScript RegExp semantics. */
+  /** Extract and validate a deterministic name using the configured strategy. */
   let extract: (~extension: string, ~source: string, generatedName) => option<string>
 }
 

@@ -1,15 +1,29 @@
-# label	pattern	flags	captureKind	captureValue	cardinality	source	resultKind	resultValue
-query with numbered capture	^[ \\t]*(?:query|mutation|subscription)[ \\t\\r\\n]+([_A-Za-z][_0-9A-Za-z]*)	m	numbered	1	exactlyOne	\n  query GetUser($id: ID!) { user(id: $id) { id } }	name	GetUser
-mutation with CRLF and tabs	^[ \\t]*(?:query|mutation|subscription)[ \\t\\r\\n]+([_A-Za-z][_0-9A-Za-z]*)	m	numbered	1	exactlyOne	\r\n\tmutation\r\nUpdateUser { updateUser { id } }	name	UpdateUser
-subscription after leading comments	^[ \\t]*(?:query|mutation|subscription)[ \\t\\r\\n]+([_A-Za-z][_0-9A-Za-z]*)	m	numbered	1	exactlyOne	# comment\n# another\nsubscription UserChanged { userChanged { id } }	name	UserChanged
-fragment before operation and unicode	^[ \\t]*(?:query|mutation|subscription)[ \\t\\r\\n]+([_A-Za-z][_0-9A-Za-z]*)	m	numbered	1	exactlyOne	# café 🚀\nfragment UserFields on User { id }\nquery UserWithFragment { user { ...UserFields } }	name	UserWithFragment
-named capture	^[ \\t]*query[ \\t\\r\\n]+(?<operation>[_A-Za-z][_0-9A-Za-z]*)	m	named	operation	first	query NamedCapture { viewer { id } }	name	NamedCapture
-fragment after operation	^[ \\t]*(?:query|mutation|subscription)[ \\t\\r\\n]+([_A-Za-z][_0-9A-Za-z]*)	m	numbered	1	exactlyOne	query BeforeFragment { user { ...Fields } }\nfragment Fields on User { id }	name	BeforeFragment
-anonymous operation	^[ \\t]*(?:query|mutation|subscription)[ \\t\\r\\n]+([_A-Za-z][_0-9A-Za-z]*)	m	numbered	1	exactlyOne	query { viewer { id } }	error	did not match
-multiple operations	^[ \\t]*(?:query|mutation|subscription)[ \\t\\r\\n]+([_A-Za-z][_0-9A-Za-z]*)	m	numbered	1	exactlyOne	query One { one }\nmutation Two { two }	error	matched more than once
-missing numbered capture	^query[ \\t]+[_A-Za-z][_0-9A-Za-z]*	m	numbered	1	first	query MissingCapture { viewer { id } }	error	capture 1 was missing
-empty capture	^query[ \\t]*([_A-Za-z]*)	m	numbered	1	first	query 	error	was empty
-invalid generated name	^query[ \\t]+([^ \\t\\r\\n]+)	m	numbered	1	first	query bad-name { viewer { id } }	error	is invalid
-invalid regex	(	m	numbered	1	first	query Broken { viewer { id } }	error	invalid ECMAScript regex
-invalid flags	(query)	z	numbered	1	first	query Broken { viewer { id } }	error	invalid ECMAScript regex
-pathological regex timeout	(a+)+$		numbered	0	first	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!	error	timed out after 100ms
+# label	strategy	pattern	flags	captureKind	captureValue	cardinality	source	resultKind	resultValue
+named query	graphqlDefinition						query GetUser($id: ID!) { user(id: $id) { id } }	name	GetUser
+mutation with CRLF and tabs	graphqlDefinition						\r\n\tmutation\r\nUpdateUser { updateUser { id } }	name	UpdateUser
+subscription after leading comments	graphqlDefinition						# comment\n# another\nsubscription UserChanged { userChanged { id } }	name	UserChanged
+fragment before operation	graphqlDefinition						fragment UserFields on User { id }\nquery UserWithFragment { user { ...UserFields } }	name	UserWithFragment
+fragment after operation	graphqlDefinition						query BeforeFragment { user { ...Fields } }\nfragment Fields on User { id }	name	BeforeFragment
+lone fragment	graphqlDefinition						fragment UserFields on User { id name }	name	UserFields
+multiple fragments without operation	graphqlDefinition						fragment One on User { id }\nfragment Two on User { name }	error	multiple fragments
+anonymous operation	graphqlDefinition						query { viewer { id } }	error	anonymous operation
+anonymous shorthand operation	graphqlDefinition						{ viewer { id } }	error	anonymous operation
+anonymous operation with fragment	graphqlDefinition						fragment Fields on User { id }\nquery { viewer { ...Fields } }	error	anonymous operation
+multiple operations	graphqlDefinition						query One { one }\nmutation Two { two }	error	multiple operations
+keywords in comments and strings	graphqlDefinition						# query Fake { nope }\nquery Real { field(arg: \"fragment Fake on User\") }	name	Real
+keywords in block string	graphqlDefinition						query BlockString { field(arg: \"\"\"mutation Fake { nope }\"\"\") }	name	BlockString
+hash name directive	nameDirective						# @name edgeThing\nselect 1	name	edgeThing
+slash name directive	nameDirective						// @name jsThing\nconst value = 1	name	jsThing
+dash name directive	nameDirective						-- @name sqlThing\nselect 1	name	sqlThing
+block name directive	nameDirective						/* docs\n * @name blockThing\n */\nselect 1	name	blockThing
+name directive ignores strings	nameDirective						const fake = \"// @name fake\";\n// @name realThing\nconst value = 1	name	realThing
+missing name directive	nameDirective						select 1	error	no valid @name
+multiple name directives	nameDirective						# @name One\n-- @name Two\nselect 1	error	multiple @name
+query regex with numbered capture	regex	^[ \t]*(?:query|mutation|subscription)[ \t\r\n]+([_A-Za-z][_0-9A-Za-z]*)	m	numbered	1	exactlyOne	query RegexUser { viewer { id } }	name	RegexUser
+named capture	regex	^[ \t]*query[ \t\r\n]+(?<operation>[_A-Za-z][_0-9A-Za-z]*)	m	named	operation	first	query NamedCapture { viewer { id } }	name	NamedCapture
+missing numbered capture	regex	^query[ \t]+[_A-Za-z][_0-9A-Za-z]*	m	numbered	1	first	query MissingCapture { viewer { id } }	error	capture 1 was missing
+empty capture	regex	^query[ \t]*([_A-Za-z]*)	m	numbered	1	first	query 	error	was empty
+invalid generated name	regex	^query[ \t]+([^ \t\r\n]+)	m	numbered	1	first	query bad-name { viewer { id } }	error	is invalid
+invalid regex	regex	(	m	numbered	1	first	query Broken { viewer { id } }	error	invalid ECMAScript regex
+invalid flags	regex	(query)	z	numbered	1	first	query Broken { viewer { id } }	error	invalid ECMAScript regex
+pathological regex timeout	regex	(a+)+$		numbered	0	first	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!	error	timed out after 100ms

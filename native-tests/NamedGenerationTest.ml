@@ -10,6 +10,7 @@ let contains haystack needle =
 
 type fixture_case = {
   label : string;
+  strategy : string;
   pattern : string;
   flags : string;
   capture_kind : string;
@@ -48,6 +49,7 @@ let parse_case line_number line =
   match String.split_on_char '\t' line with
   | [
    label;
+   strategy;
    pattern;
    flags;
    capture_kind;
@@ -59,6 +61,7 @@ let parse_case line_number line =
   ] ->
       {
         label = decode_field label;
+        strategy = decode_field strategy;
         pattern = decode_field pattern;
         flags = decode_field flags;
         capture_kind = decode_field capture_kind;
@@ -69,7 +72,7 @@ let parse_case line_number line =
         result_value = decode_field result_value;
       }
   | fields ->
-      fail "fixture line %d has %d fields; expected 9" line_number
+      fail "fixture line %d has %d fields; expected 10" line_number
         (List.length fields)
 
 let read_cases path =
@@ -109,13 +112,18 @@ let cardinality fixture =
   | value -> fail "unknown cardinality %S" value
 
 let config fixture =
-  Named.Regex
-    {
-      pattern = fixture.pattern;
-      flags = fixture.flags;
-      capture = capture fixture;
-      cardinality = cardinality fixture;
-    }
+  match fixture.strategy with
+  | "graphqlDefinition" -> Named.Graphql_definition
+  | "nameDirective" -> Named.Name_directive
+  | "regex" ->
+      Named.Regex
+        {
+          pattern = fixture.pattern;
+          flags = fixture.flags;
+          capture = capture fixture;
+          cardinality = cardinality fixture;
+        }
+  | strategy -> fail "unknown naming strategy %S" strategy
 
 let run_case fixture =
   let result =
@@ -158,6 +166,18 @@ let test_cache () =
   if after <> before + 1 then
     fail "regex cache regression: expected one compilation, observed %d" (after - before)
 
+let test_first_class_strategies_skip_quickjs () =
+  let before = Named.compiled_regexp_count () in
+  ignore
+    (Named.extract_name ~extension:"graphql" ~source:"query NativeScan { viewer }"
+       Named.Graphql_definition);
+  ignore
+    (Named.extract_name ~extension:"comments" ~source:"-- @name NativeScan\nselect 1"
+       Named.Name_directive);
+  let after = Named.compiled_regexp_count () in
+  if after <> before then
+    fail "first-class naming strategies unexpectedly compiled a QuickJS regexp"
+
 let test_stable_target () =
   let actual =
     Named.named_target ~file_name:"src/Operations.res" ~extension:"fixture" ~name:"GetThing"
@@ -165,18 +185,25 @@ let test_stable_target () =
   if not (String.equal actual "Operations__fixture__GetThing") then
     fail "unexpected stable named target %S" actual
 
-let test_cli_configuration () =
-  Named.add_regex_base64url ~extension:"configured"
-    ~pattern:"b3BlcmF0aW9uIChbQS1aYS16XSsp" ~flags:"-" ~capture_kind:"numbered"
-    ~capture_value:"1" ~cardinality:"first";
-  let actual =
-    Named.extract_name ~extension:"configured" ~source:"operation FromCli"
-      (Named.for_extension "configured")
-  in
-  if actual <> Some "FromCli" then fail "unexpected CLI-configured name";
-  match Named.for_extension "unconfigured" with
-  | Named.Sequential -> ()
-  | Named.Regex _ -> fail "unconfigured extensions should remain sequential"
+let test_config_loading () =
+  let path = Filename.temp_file "rescript-embed-lang-" ".json" in
+  Fun.protect
+    ~finally:(fun () -> Sys.remove path)
+    (fun () ->
+      let channel = open_out_bin path in
+      output_string channel
+        {|{"version":1,"extensions":{"graphql":{"generatedName":{"kind":"graphqlDefinition"}},"comments":{"generatedName":{"kind":"nameDirective"}}}}|};
+      close_out channel;
+      Named.set_config_path path;
+      (match Named.for_extension ~source_file:"src/Test.res" "graphql" with
+      | Named.Graphql_definition -> ()
+      | _ -> fail "unexpected GraphQL config strategy");
+      (match Named.for_extension ~source_file:"src/Test.res" "comments" with
+      | Named.Name_directive -> ()
+      | _ -> fail "unexpected name-directive config strategy");
+      match Named.for_extension ~source_file:"src/Test.res" "unconfigured" with
+      | Named.Sequential -> ()
+      | _ -> fail "unconfigured extensions should remain sequential")
 
 let test_timeout () =
   let config =
@@ -197,8 +224,9 @@ let test_timeout () =
 let () =
   if Array.length Sys.argv <> 2 then fail "expected shared fixture path";
   read_cases Sys.argv.(1) |> List.iter run_case;
+  test_first_class_strategies_skip_quickjs ();
   test_cache ();
   test_stable_target ();
-  test_cli_configuration ();
+  test_config_loading ();
   test_timeout ();
   Printf.printf "native named-generation corpus: ok\n"

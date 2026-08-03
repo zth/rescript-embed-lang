@@ -127,17 +127,12 @@ The formula for what code to refer to when transforming is be: `<filename>__<gen
 
 ### Deterministic named generation
 
-Generators can opt into one generated file per embed by deriving a stable name with the same ECMAScript regular expression in Node and the native PPX:
+Generators can opt into one generated file per embed by deriving a stable name. GraphQL generators should use the first-class `GraphqlDefinition` strategy:
 
 ```rescript
 let embed = RescriptEmbedLang.make(
   ~extensionPattern=Generic("gqlExternalSchema"),
-  ~generatedName=Regex({
-    pattern: "^[ \\t]*(?:query|mutation|subscription)[ \\t\\r\\n]+([_A-Za-z][_0-9A-Za-z]*)",
-    flags: "m",
-    capture: Numbered(1),
-    cardinality: ExactlyOne,
-  }),
+  ~generatedName=GraphqlDefinition,
   ~setup=RescriptEmbedLang.defaultSetup,
   ~generate,
   ~cliHelpText,
@@ -197,10 +192,27 @@ type response = Ga4Properties.response
 await client->run(Ga4Properties.default, variables)
 ```
 
-Generation must run before ReScript compilation. There are no source hashes in the generated API or PPX target; operation names provide stable generated filenames and module references.
+`GraphqlDefinition` uses the one named operation in a GraphQL document, ignoring any accompanying fragments. If there is no operation, a lone named fragment is accepted. Anonymous operations, multiple operations, and multiple fragments without an operation produce a generator and compile-time error.
 
-Pass each named extension's configuration directly to the PPX. Repeat
-`-embed-lang-generated-name-regex` when a project uses multiple named extensions:
+For languages that conventionally carry a name in a comment, use `NameDirective`:
+
+```rescript
+let embed = RescriptEmbedLang.make(
+  ~extensionPattern=Generic("sql"),
+  ~generatedName=NameDirective,
+  ~setup=RescriptEmbedLang.defaultSetup,
+  ~generate,
+  ~cliHelpText,
+)
+```
+
+It recognizes exactly one `@name <identifier>` inside `#`, `//`, `--`, or `/* ... */` comments. String contents are ignored.
+
+`Regex` remains available as an escape hatch for language-specific naming. It supports numbered or named captures and `ExactlyOne` or `First` cardinality, using ECMAScript regular-expression semantics in both runtimes.
+
+Generation must run before ReScript compilation. There are no source hashes in the generated API or PPX target; extracted names provide stable generated filenames and module references.
+
+The generator writes a human-readable `rescript-embed-lang.json` beside its output by default. Point the PPX at that one file:
 
 ```json
 {
@@ -208,26 +220,18 @@ Pass each named extension's configuration directly to the PPX. Repeat
     [
       "rescript-embed-lang/ppx",
       "-enable-generic-transform",
-      "-embed-lang-generated-name-regex",
-      "gqlExternalSchema",
-      "XlsgXHRdKig_OnF1ZXJ5fG11dGF0aW9ufHN1YnNjcmlwdGlvbilbIFx0XHJcbl0rKFtfQS1aYS16XVtfMC05QS1aYS16XSop",
-      "m",
-      "numbered",
-      "1",
-      "exactlyOne"
+      "-embed-lang-config",
+      "./src/__generated__/rescript-embed-lang.json"
     ]
   ]
 }
 ```
 
-The arguments are, in order: extension, base64url-encoded ECMAScript pattern,
-flags, capture kind (`numbered` or `named`), capture value, and cardinality
-(`exactlyOne` or `first`). The pattern uses base64url because ReScript passes PPX
-flags through a shell command without quoting arbitrary values. The PPX receives
-all configuration directly and performs no configuration-file I/O. Use `-` for
-the flags argument when the regular expression has no flags.
+Use `--embed-lang-config <path>` on the generator only when the config should live somewhere other than `<output>/rescript-embed-lang.json`. Multiple generators can update different extension entries in the same file.
 
-Generation is staged before commit, detects case-insensitive and user-module collisions, removes only files recorded in its ownership index, and includes extra emitted artifacts in the same transaction. Watch runs are serialized and coalesced.
+The PPX loads the config lazily, only when it encounters a named `%generated.*` embed, and memoizes it for the rest of the process. First-class GraphQL and comment strategies use native scanners; QuickJS is initialized only for explicit `Regex` strategies.
+
+Generation is staged before commit, detects case-insensitive and user-module collisions, removes only files recorded in its ownership index, and includes extra emitted artifacts and config updates in the same transaction. The ownership index is removed when the extension has no embeds left; the config remains because it describes how future embeds for that extension compile. Watch runs are serialized and coalesced.
 
 `Sequential` remains the default, preserving the existing `M1`, `M2`, and monolithic-file behavior.
 

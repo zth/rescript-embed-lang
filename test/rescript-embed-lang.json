@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "extensions": {
+    "fixture": {
+      "generatedName": {
+        "kind": "graphqlDefinition"
+      }
+    }
+  }
+}

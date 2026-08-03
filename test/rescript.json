@@ -14,13 +14,8 @@
     [
       "rescript-embed-lang/ppx",
       "-enable-generic-transform",
-      "-embed-lang-generated-name-regex",
-      "fixture",
-      "XlsgXHRdKig_OnF1ZXJ5fG11dGF0aW9ufHN1YnNjcmlwdGlvbilbIFx0XHJcbl0rKFtfQS1aYS16XVtfMC05QS1aYS16XSop",
-      "m",
-      "numbered",
-      "1",
-      "exactlyOne"
+      "-embed-lang-config",
+      "./rescript-embed-lang.json"
     ]
   ]
 }

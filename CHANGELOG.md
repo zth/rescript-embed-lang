@@ -4,8 +4,9 @@
 
 - Add statically linked Linux ARM64 PPX builds and select the ARM64 binary during npm installation.
 - Remove a generator's ownership index when its final owned output is removed.
-- Configure named generation with native PPX arguments instead of generated JSON files.
-- Remove the Yojson dependency by using a dependency-free shared test corpus.
+- Add first-class GraphQL definition and `@name` comment strategies, with regex as an escape hatch.
+- Generate one human-readable PPX config, load it lazily, and memoize it per PPX process.
+- Prefer a named GraphQL operation, while supporting a lone fragment when no operation exists.
 
 ## 0.6.0
 
