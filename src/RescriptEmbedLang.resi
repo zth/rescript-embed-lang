@@ -51,14 +51,18 @@ type extensionPattern =
   | FirstClass(string)
 
 /** Controls stable per-embed generated modules. Named value embeds resolve to the module's `default`; Sequential preserves the legacy M1/M2 layout. */
+type cardinality = ExactlyOne | First
+type capture = Numbered(int) | Named(string)
+
 type generatedName =
   | Sequential
   | GraphqlDefinition
   | NameDirective
+  | Regex({pattern: string, flags: string, capture: capture, cardinality: cardinality})
 
 module GeneratedName: {
   /** Extract a deterministic name using the configured strategy. */
-  let extract: (~source: string, generatedName) => option<string>
+  let extract: (~extension: string, ~source: string, generatedName) => option<string>
 }
 
 /**

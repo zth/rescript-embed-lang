@@ -208,6 +208,17 @@ let embed = RescriptEmbedLang.make(
 
 `NameDirective` finds exactly one `@name <identifier>` in the embedded source. It deliberately does not parse the host language, so generators should reserve `@name` for the naming directive and avoid including another `@name` in strings or examples.
 
+`Regex` is available when neither first-class strategy fits. It supports numbered or named captures and `ExactlyOne` or `First` cardinality with ECMAScript regular-expression semantics in both runtimes.
+
+```rescript
+~generatedName=Regex({
+  pattern: "^-- @name ([_A-Za-z][_0-9A-Za-z]*)",
+  flags: "m",
+  capture: Numbered(1),
+  cardinality: ExactlyOne,
+})
+```
+
 Generation must run before ReScript compilation. There are no source hashes in the generated API or PPX target; extracted names provide stable generated filenames and module references.
 
 The generator writes a human-readable `rescript-embed-lang.json` beside its output by default. Point the PPX at that one file:
@@ -227,7 +238,7 @@ The generator writes a human-readable `rescript-embed-lang.json` beside its outp
 
 Use `--embed-lang-config <path>` on the generator only when the config should live somewhere other than `<output>/rescript-embed-lang.json`. Multiple generators can update different extension entries in the same file.
 
-The PPX loads the config lazily, only when it encounters a named `%generated.*` embed, and memoizes it for the rest of the process.
+The PPX loads the config lazily, only when it encounters a named `%generated.*` embed, and memoizes it for the rest of the process. GraphQL and `@name` extraction are native; QuickJS is used only for explicit `Regex` strategies.
 
 Generation is staged before commit, detects case-insensitive and user-module collisions, removes only files recorded in its ownership index, and includes extra emitted artifacts and config updates in the same transaction. The ownership index is removed when the extension has no embeds left; the config remains because it describes how future embeds for that extension compile. Watch runs are serialized and coalesced.
 

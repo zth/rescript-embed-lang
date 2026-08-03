@@ -90,7 +90,8 @@ let run_case fixture =
   let result =
     try
       Ok
-        (Named.extract_name ~source:fixture.source (config fixture.strategy))
+        (Named.extract_name ~extension:"fixture" ~source:fixture.source
+           (config fixture.strategy))
     with Failure message -> Error message
   in
   match (fixture.result_kind, result) with
@@ -117,6 +118,53 @@ let test_stable_target () =
   if not (String.equal actual "Operations__fixture__GetThing") then
     fail "unexpected stable named target %S" actual
 
+let test_regex () =
+  let numbered =
+    Named.Regex
+      {
+        pattern = "query[ \\t]+([_A-Za-z][_0-9A-Za-z]*)";
+        flags = "";
+        capture = Named.Numbered 1;
+        cardinality = Named.Exactly_one;
+      }
+  in
+  (match Named.extract_name ~extension:"fixture" ~source:"query GetThing { thing }" numbered with
+  | Some "GetThing" -> ()
+  | _ -> fail "numbered Regex capture did not extract GetThing");
+  let named =
+    Named.Regex
+      {
+        pattern = "^mutation[ \\t]+(?<name>[_A-Za-z][_0-9A-Za-z]*)";
+        flags = "";
+        capture = Named.Named "name";
+        cardinality = Named.First;
+      }
+  in
+  (match
+     Named.extract_name ~extension:"fixture" ~source:"mutation UpdateThing { updateThing }"
+       named
+   with
+  | Some "UpdateThing" -> ()
+  | _ -> fail "named Regex capture did not extract UpdateThing");
+  (match
+     Named.extract_name ~extension:"fixture" ~source:"query One { one } query Two { two }"
+       numbered
+   with
+  | _ -> fail "Exactly_one Regex unexpectedly accepted two matches"
+  | exception Failure message when contains message "matched more than once" -> ());
+  let unicode_zero_width =
+    Named.Regex
+      {
+        pattern = "^(?=😀(?<name>Foo))";
+        flags = "u";
+        capture = Named.Named "name";
+        cardinality = Named.Exactly_one;
+      }
+  in
+  match Named.extract_name ~extension:"fixture" ~source:"😀Foo" unicode_zero_width with
+  | Some "Foo" -> ()
+  | _ -> fail "zero-width Unicode Regex did not extract Foo"
+
 let test_config_loading () =
   let path = Filename.temp_file "rescript-embed-lang-" ".json" in
   Fun.protect
@@ -124,7 +172,7 @@ let test_config_loading () =
     (fun () ->
       let channel = open_out_bin path in
       output_string channel
-        {|{"version":1,"extensions":{"graphql":{"generatedName":{"kind":"graphqlDefinition"}},"comments":{"generatedName":{"kind":"nameDirective"}}}}|};
+        {|{"version":1,"extensions":{"graphql":{"generatedName":{"kind":"graphqlDefinition"}},"comments":{"generatedName":{"kind":"nameDirective"}},"custom":{"generatedName":{"kind":"regex","pattern":"query[ \\t]+([_A-Za-z][_0-9A-Za-z]*)","flags":"","capture":{"kind":"numbered","index":1},"cardinality":"exactlyOne"}}}}|};
       close_out channel;
       Named.set_config_path path;
       (match Named.for_extension ~source_file:"src/Test.res" "graphql" with
@@ -133,6 +181,9 @@ let test_config_loading () =
       (match Named.for_extension ~source_file:"src/Test.res" "comments" with
       | Named.Name_directive -> ()
       | _ -> fail "unexpected name-directive config strategy");
+      (match Named.for_extension ~source_file:"src/Test.res" "custom" with
+      | Named.Regex _ -> ()
+      | _ -> fail "unexpected Regex config strategy");
       match Named.for_extension ~source_file:"src/Test.res" "unconfigured" with
       | Named.Sequential -> ()
       | _ -> fail "unconfigured extensions should remain sequential")
@@ -141,5 +192,6 @@ let () =
   if Array.length Sys.argv <> 2 then fail "expected shared fixture path";
   read_cases Sys.argv.(1) |> List.iter run_case;
   test_stable_target ();
+  test_regex ();
   test_config_loading ();
   Printf.printf "native named-generation corpus: ok\n"

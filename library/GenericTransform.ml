@@ -42,10 +42,10 @@ let target ~loc ~file_name ~extension ~payload ~transform_mode =
   try
     match NamedGeneration.for_extension ~source_file:file_name extension with
     | Sequential -> sequential_target ~file_name ~extension ~transform_mode
-    | (Graphql_definition | Name_directive) as generated_name ->
+    | (Graphql_definition | Name_directive | Regex _) as generated_name ->
         let source = literal_source ~loc payload in
         let name =
-          match NamedGeneration.extract_name ~source generated_name with
+          match NamedGeneration.extract_name ~extension ~source generated_name with
           | Some name -> name
           | None -> assert false
         in

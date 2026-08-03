@@ -110,6 +110,7 @@ describe("named generation shared corpus", () => {
         let result = try {
           Ok(
             RescriptEmbedLang.GeneratedName.extract(
+              ~extension="fixture",
               ~source=case.source,
               config,
             ),
@@ -130,6 +131,73 @@ describe("named generation shared corpus", () => {
         }
       },
     )
+  })
+})
+
+describe("regex naming", () => {
+  test("supports numbered captures and cardinality", () => {
+    let config = RescriptEmbedLang.Regex({
+      pattern: "query[ \\t]+([_A-Za-z][_0-9A-Za-z]*)",
+      flags: "",
+      capture: Numbered(1),
+      cardinality: ExactlyOne,
+    })
+    let result = RescriptEmbedLang.GeneratedName.extract(
+      ~extension="fixture",
+      ~source="query GetThing { thing }",
+      config,
+    )
+    NamedGenerationFixture.equal(result, Some("GetThing"))
+  })
+
+  test("supports named captures", () => {
+    let config = RescriptEmbedLang.Regex({
+      pattern: "^mutation[ \\t]+(?<name>[_A-Za-z][_0-9A-Za-z]*)",
+      flags: "",
+      capture: Named("name"),
+      cardinality: First,
+    })
+    let result = RescriptEmbedLang.GeneratedName.extract(
+      ~extension="fixture",
+      ~source="mutation UpdateThing { updateThing }",
+      config,
+    )
+    NamedGenerationFixture.equal(result, Some("UpdateThing"))
+  })
+
+  test("enforces ExactlyOne", () => {
+    let config = RescriptEmbedLang.Regex({
+      pattern: "query[ \\t]+([_A-Za-z][_0-9A-Za-z]*)",
+      flags: "",
+      capture: Numbered(1),
+      cardinality: ExactlyOne,
+    })
+    let message = try {
+      RescriptEmbedLang.GeneratedName.extract(
+        ~extension="fixture",
+        ~source="query One { one } query Two { two }",
+        config,
+      )->ignore
+      ""
+    } catch {
+    | JsExn(error) => error->JsExn.message->Option.getOr("")
+    }
+    NamedGenerationFixture.ok(message->String.includes("matched more than once"))
+  })
+
+  test("advances zero-width Unicode matches by code point", () => {
+    let config = RescriptEmbedLang.Regex({
+      pattern: "^(?=😀(?<name>Foo))",
+      flags: "u",
+      capture: Named("name"),
+      cardinality: ExactlyOne,
+    })
+    let result = RescriptEmbedLang.GeneratedName.extract(
+      ~extension="fixture",
+      ~source="😀Foo",
+      config,
+    )
+    NamedGenerationFixture.equal(result, Some("Foo"))
   })
 })
 
