@@ -20,6 +20,8 @@ slash name directive	nameDirective						// @name jsThing\nconst value = 1	name	j
 dash name directive	nameDirective						-- @name sqlThing\nselect 1	name	sqlThing
 block name directive	nameDirective						/* docs\n * @name blockThing\n */\nselect 1	name	blockThing
 name directive ignores strings	nameDirective						const fake = \"// @name fake\";\n// @name realThing\nconst value = 1	name	realThing
+name directive ignores dollar quote	nameDirective						SELECT $$-- @name fake$$;\n-- @name realDollar\nSELECT 1	name	realDollar
+name directive ignores tagged dollar quote	nameDirective						SELECT $body$# @name fake$body$;\n-- @name realTagged\nSELECT 1	name	realTagged
 missing name directive	nameDirective						select 1	error	no valid @name
 multiple name directives	nameDirective						# @name One\n-- @name Two\nselect 1	error	multiple @name
 query regex with numbered capture	regex	^[ \t]*(?:query|mutation|subscription)[ \t\r\n]+([_A-Za-z][_0-9A-Za-z]*)	m	numbered	1	exactlyOne	query RegexUser { viewer { id } }	name	RegexUser

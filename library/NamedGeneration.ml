@@ -354,6 +354,22 @@ let names_in_comment comment =
 
 let extract_name_directive source =
   let length = String.length source in
+  let dollar_quote_delimiter index =
+    let rec tag_end offset =
+      if offset < length && is_name_continue source.[offset] then tag_end (offset + 1)
+      else offset
+    in
+    let end_ = tag_end (index + 1) in
+    let has_valid_tag = end_ = index + 1 || is_name_start source.[index + 1] in
+    if has_valid_tag && end_ < length && source.[end_] = '$' then
+      Some (String.sub source index (end_ - index + 1), end_ + 1)
+    else None
+  in
+  let rec skip_dollar_quoted index delimiter =
+    if index >= length then index
+    else if starts_with_at source index delimiter then index + String.length delimiter
+    else skip_dollar_quoted (index + 1) delimiter
+  in
   let rec skip_quoted index quote escaped =
     if index >= length then index
     else if escaped then skip_quoted (index + 1) quote false
@@ -375,6 +391,11 @@ let extract_name_directive source =
     if index >= length then List.rev names
     else
       match source.[index] with
+      | '$' -> (
+          match dollar_quote_delimiter index with
+          | Some (delimiter, content_start) ->
+              loop (skip_dollar_quoted content_start delimiter) names
+          | None -> loop (index + 1) names)
       | ('"' | '\'' | '`') as quote -> loop (skip_quoted (index + 1) quote false) names
       | '#' ->
           let end_ = line_end (index + 1) in

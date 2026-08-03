@@ -241,7 +241,29 @@ module GeneratedName = {
     let index = ref(0)
     while index.contents < length {
       let character = source->String.charAt(index.contents)
-      if character === "\"" || character === "'" || character === "`" {
+      if character === "$" {
+        let delimiterEnd = ref(index.contents + 1)
+        while delimiterEnd.contents < length && isNameContinue(source->String.charAt(delimiterEnd.contents)) {
+          delimiterEnd := delimiterEnd.contents + 1
+        }
+        let hasValidTag = delimiterEnd.contents === index.contents + 1 ||
+          isNameStart(source->String.charAt(index.contents + 1))
+        if hasValidTag && source->String.charAt(delimiterEnd.contents) === "$" {
+          let delimiter = source->String.slice(~start=index.contents, ~end=delimiterEnd.contents + 1)
+          index := delimiterEnd.contents + 1
+          let closed = ref(false)
+          while index.contents < length && !closed.contents {
+            if source->String.slice(~start=index.contents, ~end=index.contents + delimiter->String.length) === delimiter {
+              index := index.contents + delimiter->String.length
+              closed := true
+            } else {
+              index := index.contents + 1
+            }
+          }
+        } else {
+          index := index.contents + 1
+        }
+      } else if character === "\"" || character === "'" || character === "`" {
         let quote = character
         index := index.contents + 1
         let escaped = ref(false)
