@@ -203,7 +203,15 @@ let starts_with_at source offset prefix =
   offset + prefix_length <= source_length
   && String.sub source offset prefix_length = prefix
 
-type graphql_token = Name of string | Left_brace | Right_brace | Other
+type graphql_token =
+  | Name of string
+  | Left_brace
+  | Right_brace
+  | Left_paren
+  | Right_paren
+  | Left_bracket
+  | Right_bracket
+  | Other
 
 let graphql_tokens source =
   let length = String.length source in
@@ -246,6 +254,10 @@ let graphql_tokens source =
           loop end_ (Name (String.sub source index (end_ - index)) :: tokens)
       | '{' -> loop (index + 1) (Left_brace :: tokens)
       | '}' -> loop (index + 1) (Right_brace :: tokens)
+      | '(' -> loop (index + 1) (Left_paren :: tokens)
+      | ')' -> loop (index + 1) (Right_paren :: tokens)
+      | '[' -> loop (index + 1) (Left_bracket :: tokens)
+      | ']' -> loop (index + 1) (Right_bracket :: tokens)
       | _ -> loop (index + 1) (Other :: tokens)
   in
   loop 0 []
@@ -254,15 +266,30 @@ let extract_graphql_definition source =
   let operations = ref [] in
   let fragments = ref [] in
   let depth = ref 0 in
+  let paren_depth = ref 0 in
+  let bracket_depth = ref 0 in
   let awaiting_body = ref false in
   let rec loop = function
     | [] -> ()
-    | Left_brace :: rest when !depth = 0 ->
+    | Left_paren :: rest ->
+        incr paren_depth;
+        loop rest
+    | Right_paren :: rest ->
+        if !paren_depth > 0 then decr paren_depth;
+        loop rest
+    | Left_bracket :: rest ->
+        incr bracket_depth;
+        loop rest
+    | Right_bracket :: rest ->
+        if !bracket_depth > 0 then decr bracket_depth;
+        loop rest
+    | Left_brace :: rest
+      when !depth = 0 && !paren_depth = 0 && !bracket_depth = 0 ->
         if not !awaiting_body then operations := None :: !operations;
         awaiting_body := false;
         depth := 1;
         loop rest
-    | Left_brace :: rest ->
+    | Left_brace :: rest when !depth > 0 ->
         incr depth;
         loop rest
     | Right_brace :: rest when !depth > 0 ->

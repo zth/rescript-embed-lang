@@ -68,7 +68,16 @@ module GeneratedName = {
   let isWhitespace = character =>
     character === " " || character === "\t" || character === "\r" || character === "\n"
 
-  @live type graphqlToken = Name(string) | LeftBrace | RightBrace | Other
+  @live
+  type graphqlToken =
+    | Name(string)
+    | LeftBrace
+    | RightBrace
+    | LeftParen
+    | RightParen
+    | LeftBracket
+    | RightBracket
+    | Other
 
   let graphqlTokens = source => {
     let tokens: array<graphqlToken> = []
@@ -124,6 +133,10 @@ module GeneratedName = {
           switch character {
           | "{" => LeftBrace
           | "}" => RightBrace
+          | "(" => LeftParen
+          | ")" => RightParen
+          | "[" => LeftBracket
+          | "]" => RightBracket
           | _ => Other
           },
         )
@@ -137,18 +150,25 @@ module GeneratedName = {
     let operations: array<option<string>> = []
     let fragments: array<string> = []
     let depth = ref(0)
+    let parenDepth = ref(0)
+    let bracketDepth = ref(0)
     let awaitingBody = ref(false)
     let tokens = graphqlTokens(source)
     let index = ref(0)
     while index.contents < tokens->Array.length {
       switch tokens[index.contents] {
-      | Some(LeftBrace) if depth.contents === 0 =>
+      | Some(LeftParen) => parenDepth := parenDepth.contents + 1
+      | Some(RightParen) if parenDepth.contents > 0 => parenDepth := parenDepth.contents - 1
+      | Some(LeftBracket) => bracketDepth := bracketDepth.contents + 1
+      | Some(RightBracket) if bracketDepth.contents > 0 =>
+        bracketDepth := bracketDepth.contents - 1
+      | Some(LeftBrace) if depth.contents === 0 && parenDepth.contents === 0 && bracketDepth.contents === 0 =>
         if !awaitingBody.contents {
           operations->Array.push(None)
         }
         awaitingBody := false
         depth := 1
-      | Some(LeftBrace) => depth := depth.contents + 1
+      | Some(LeftBrace) if depth.contents > 0 => depth := depth.contents + 1
       | Some(RightBrace) if depth.contents > 0 => depth := depth.contents - 1
       | Some(Name(("query" | "mutation" | "subscription"))) if depth.contents === 0 && !awaitingBody.contents =>
         operations->Array.push(

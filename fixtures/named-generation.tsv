@@ -1,5 +1,8 @@
 # label	strategy	pattern	flags	captureKind	captureValue	cardinality	source	resultKind	resultValue
 named query	graphqlDefinition						query GetUser($id: ID!) { user(id: $id) { id } }	name	GetUser
+input object variable default	graphqlDefinition						query WithDefault($filter: Filter = {active: true}) { users(filter: $filter) { id } }	name	WithDefault
+nested input defaults	graphqlDefinition						query NestedDefault($filters: [Filter!] = [{active: true}, {nested: {enabled: false}}]) { users(filters: $filters) { id } }	name	NestedDefault
+operation directive object argument	graphqlDefinition						query WithDirective @cache(config: {ttl: 1}) { viewer { id } }	name	WithDirective
 mutation with CRLF and tabs	graphqlDefinition						\r\n\tmutation\r\nUpdateUser { updateUser { id } }	name	UpdateUser
 subscription after leading comments	graphqlDefinition						# comment\n# another\nsubscription UserChanged { userChanged { id } }	name	UserChanged
 fragment before operation	graphqlDefinition						fragment UserFields on User { id }\nquery UserWithFragment { user { ...UserFields } }	name	UserWithFragment
