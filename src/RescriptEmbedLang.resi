@@ -50,25 +50,15 @@ type extensionPattern =
   - `FirstClass("edgeql")` means `%edgeql(...)`*/
   | FirstClass(string)
 
-/** Cardinality required when extracting a generated name. */
-type cardinality = ExactlyOne | First
-
-/** Capture selected from the configured ECMAScript regular expression. */
-type capture = Numbered(int) | Named(string)
-
 /** Controls stable per-embed generated modules. Named value embeds resolve to the module's `default`; Sequential preserves the legacy M1/M2 layout. */
 type generatedName =
   | Sequential
   | GraphqlDefinition
   | NameDirective
-  | NameDirectivePostgreSQL
-  | NameDirectiveShell
-  | NameDirectivePython
-  | Regex({pattern: string, flags: string, capture: capture, cardinality: cardinality})
 
 module GeneratedName: {
-  /** Extract and validate a deterministic name using the configured strategy. */
-  let extract: (~extension: string, ~source: string, generatedName) => option<string>
+  /** Extract a deterministic name using the configured strategy. */
+  let extract: (~source: string, generatedName) => option<string>
 }
 
 /**

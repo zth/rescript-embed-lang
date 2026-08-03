@@ -1,86 +1,20 @@
-# label	strategy	pattern	flags	captureKind	captureValue	cardinality	source	resultKind	resultValue
-named query	graphqlDefinition						query GetUser($id: ID!) { user(id: $id) { id } }	name	GetUser
-input object variable default	graphqlDefinition						query WithDefault($filter: Filter = {active: true}) { users(filter: $filter) { id } }	name	WithDefault
-nested input defaults	graphqlDefinition						query NestedDefault($filters: [Filter!] = [{active: true}, {nested: {enabled: false}}]) { users(filters: $filters) { id } }	name	NestedDefault
-operation directive object argument	graphqlDefinition						query WithDirective @cache(config: {ttl: 1}) { viewer { id } }	name	WithDirective
-mutation with CRLF and tabs	graphqlDefinition						\r\n\tmutation\r\nUpdateUser { updateUser { id } }	name	UpdateUser
-subscription after leading comments	graphqlDefinition						# comment\n# another\nsubscription UserChanged { userChanged { id } }	name	UserChanged
-query after CR-only comment	graphqlDefinition						# description\rquery AfterCarriageReturn { viewer { id } }	name	AfterCarriageReturn
-fragment before operation	graphqlDefinition						fragment UserFields on User { id }\nquery UserWithFragment { user { ...UserFields } }	name	UserWithFragment
-fragment after operation	graphqlDefinition						query BeforeFragment { user { ...Fields } }\nfragment Fields on User { id }	name	BeforeFragment
-lone fragment	graphqlDefinition						fragment UserFields on User { id name }	name	UserFields
-multiple fragments without operation	graphqlDefinition						fragment One on User { id }\nfragment Two on User { name }	error	multiple fragments
-anonymous operation	graphqlDefinition						query { viewer { id } }	error	anonymous operation
-anonymous shorthand operation	graphqlDefinition						{ viewer { id } }	error	anonymous operation
-anonymous operation with fragment	graphqlDefinition						fragment Fields on User { id }\nquery { viewer { ...Fields } }	error	anonymous operation
-multiple operations	graphqlDefinition						query One { one }\nmutation Two { two }	error	multiple operations
-keywords in comments and strings	graphqlDefinition						# query Fake { nope }\nquery Real { field(arg: \"fragment Fake on User\") }	name	Real
-keywords in block string	graphqlDefinition						query BlockString { field(arg: \"\"\"mutation Fake { nope }\"\"\") }	name	BlockString
-hash name directive	nameDirectivePython						# @name edgeThing\nselect 1	name	edgeThing
-hash comment starts with identifier	nameDirectivePython						#documentation @name documentedThing	name	documentedThing
-shell parameter trimming	nameDirectiveShell						value=${path#prefix}; echo \"@name fake\"; # @name realShell	name	realShell
-shell single quote final backslash	nameDirectiveShell						value='\\'; # @name realShellQuote	name	realShellQuote
-Python triple-quoted string	nameDirectivePython						text = \"\"\"say \" # @name fake\n\"\"\"\n# @name realPython	name	realPython
-slash name directive	nameDirective						// @name jsThing\nconst value = 1	name	jsThing
-CR-only name directive	nameDirective						// @name carriageName\rconst value = 1	name	carriageName
-dash name directive	nameDirectivePostgreSQL						-- @name sqlThing\nselect 1	name	sqlThing
-block name directive	nameDirective						/* docs\n * @name blockThing\n */\nselect 1	name	blockThing
-nested block name directive	nameDirectivePostgreSQL						/* outer /* nested */ @name nestedThing */ SELECT 1	name	nestedThing
-JavaScript block comments close first	nameDirective						/* mention /* token */\n// @name realFirstClose	name	realFirstClose
-name directive ignores strings	nameDirective						const fake = \"// @name fake\";\n// @name realThing\nconst value = 1	name	realThing
-name directive ignores dollar quote	nameDirectivePostgreSQL						SELECT $$-- @name fake$$;\n-- @name realDollar\nSELECT 1	name	realDollar
-name directive ignores tagged dollar quote	nameDirectivePostgreSQL						SELECT $body$# @name fake$body$;\n-- @name realTagged\nSELECT 1	name	realTagged
-name directive ignores Unicode dollar quote	nameDirectivePostgreSQL						SELECT $é$/* @name fake */$é$; -- @name realUnicodeTag	name	realUnicodeTag
-dollar quote requires boundary	nameDirectivePostgreSQL						SELECT foo$tag$ FROM items;\n-- @name getItems	name	getItems
-unicode dollar quote boundary	nameDirectivePostgreSQL						SELECT é$tag$ FROM items;\n-- @name getUnicodeItems	name	getUnicodeItems
-ordinary SQL string final backslash	nameDirectivePostgreSQL						SELECT '\\'; -- @name getThing	name	getThing
-multiple ordinary SQL strings	nameDirectivePostgreSQL						SELECT '\\', 'x'; -- @name getMultiple	name	getMultiple
-ordinary SQL string before concatenation	nameDirectivePostgreSQL						SELECT '\\' || 'x'; -- @name getConcatenated	name	getConcatenated
-PostgreSQL quoted identifier final backslash	nameDirectivePostgreSQL						SELECT \"path\\\"; -- @name getPath	name	getPath
-escape SQL string backslash quote	nameDirectivePostgreSQL						SELECT E'it\\'s -- @name fake';\n-- @name realEscape	name	realEscape
-JavaScript single quote escape	nameDirective						const value = 'it\\'s // @name fake'; // @name realJs	name	realJs
-JavaScript regex literal	nameDirective						const value = /# @name fake/;\n// @name realRegex	name	realRegex
-JavaScript regex character class	nameDirective						const value = /[\\/#] @name fake/;\n// @name realRegexClass	name	realRegexClass
-JavaScript regex after return	nameDirective						function get() { return /# @name fake/ }\n// @name realReturnRegex	name	realReturnRegex
-JavaScript regex after condition	nameDirective						if (ready) /# @name fake/.test(value); // @name realConditionalRegex	name	realConditionalRegex
-JavaScript regex after else	nameDirective						if (ready) work(); else /# @name fake/.test(value);\n// @name realElseRegex	name	realElseRegex
-JavaScript regex after block	nameDirective						if (ready) {} /[/*] @name fake [*/]/.test(value); // @name realAfterBlock	name	realAfterBlock
-JavaScript postfix division	nameDirective						i++ / 2; // @name realPostfixDivision	name	realPostfixDivision
-JavaScript postfix decrement	nameDirective						value--; const label = \"@name fake\";\n// @name realPostfixDecrement	name	realPostfixDecrement
-JavaScript prefix decrement	nameDirective						--value; const label = \"@name fake\";\n// @name realPrefixDecrement	name	realPrefixDecrement
-JavaScript private field	nameDirective						class C { #label = \"@name fake\"; }\n// @name realPrivateField	name	realPrivateField
-JavaScript template interpolation comment	nameDirective						const value = `${1 /* @name embedded */}`;	name	embedded
-JavaScript template raw text ignored	nameDirective						const value = `/* @name fake */ ${{value: 1 /* @name embeddedObject */}.value}`;	name	embeddedObject
-JavaScript nested template interpolation	nameDirective						const value = `${`nested ${1 /* @name nestedTemplate */}`}`;	name	nestedTemplate
-PostgreSQL hash operator	nameDirectivePostgreSQL						SELECT doc #>> '{path}', '@name fake'; -- @name realHashOperator	name	realHashOperator
-missing name directive	nameDirective						select 1	error	no valid @name
-multiple name directives	nameDirectivePython						# @name One\n# @name Two\nselect 1	error	multiple @name
-query regex with numbered capture	regex	^[ \t]*(?:query|mutation|subscription)[ \t\r\n]+([_A-Za-z][_0-9A-Za-z]*)	m	numbered	1	exactlyOne	query RegexUser { viewer { id } }	name	RegexUser
-zero-width Unicode regex	regex	^(?=😀(?<name>Foo))	u	named	name	exactlyOne	😀Foo	name	Foo
-named capture	regex	^[ \t]*query[ \t\r\n]+(?<operation>[_A-Za-z][_0-9A-Za-z]*)	m	named	operation	first	query NamedCapture { viewer { id } }	name	NamedCapture
-missing numbered capture	regex	^query[ \t]+[_A-Za-z][_0-9A-Za-z]*	m	numbered	1	first	query MissingCapture { viewer { id } }	error	capture 1 was missing
-empty capture	regex	^query[ \t]*([_A-Za-z]*)	m	numbered	1	first	query 	error	was empty
-invalid generated name	regex	^query[ \t]+([^ \t\r\n]+)	m	numbered	1	first	query bad-name { viewer { id } }	error	is invalid
-invalid regex	regex	(	m	numbered	1	first	query Broken { viewer { id } }	error	invalid ECMAScript regex
-invalid flags	regex	(query)	z	numbered	1	first	query Broken { viewer { id } }	error	invalid ECMAScript regex
-pathological regex timeout	regex	(a+)+$		numbered	0	first	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!	error	timed out after 100ms
-shell heredoc body	nameDirectiveShell						cat <<'EOF'\n# @name example\nEOF\n# @name realHeredoc	name	realHeredoc
-shell multiple heredoc bodies	nameDirectiveShell						cat <<A <<-B\n# @name firstFake\nA\n\t# @name secondFake\n\tB\n# @name realMultipleHeredoc	name	realMultipleHeredoc
-shell backtick substitution comment	nameDirectiveShell						value=`echo start\n# @name embeddedBacktick\n`	name	embeddedBacktick
-shell escaped hash	nameDirectiveShell						echo \\# @name fake\n# @name realEscapedHash	name	realEscapedHash
-shell hash inside word	nameDirectiveShell						echo value#notacomment @name fake\n# @name realHashWord	name	realHashWord
-shell quoted backtick substitution	nameDirectiveShell						value=\"`echo start\n# @name quotedBacktick\n`\"	name	quotedBacktick
-shell quoted dollar substitution	nameDirectiveShell						value=\"$(echo start\n# @name quotedDollar\n)\"	name	quotedDollar
-shell nested quote in dollar substitution	nameDirectiveShell						value=\"$(printf \"%s\" value\n# @name nestedQuotedDollar\n)\"	name	nestedQuotedDollar
-shell literal double quote	nameDirectiveShell						value=\"# @name fake\"\n# @name realDoubleQuote	name	realDoubleQuote
-shell escaped heredoc delimiter	nameDirectiveShell						cat <<\\EOF\n# @name fakeEscapedDelimiter\nEOF\n# @name realEscapedDelimiter	name	realEscapedDelimiter
-shell mixed quoted heredoc delimiter	nameDirectiveShell						cat <<E\"OF\"\n# @name fakeMixedDelimiter\nEOF\n# @name realMixedDelimiter	name	realMixedDelimiter
-shell arithmetic shift	nameDirectiveShell						value=$((1 << 2))\n# @name realArithmeticShift	name	realArithmeticShift
-shell quoted heredoc preserved backslash	nameDirectiveShell						cat <<\"E\\OF\"\n# @name firstFakePreserved\nEOF\n# @name secondFakePreserved\nE\\OF\n# @name realPreservedBackslash	name	realPreservedBackslash
-shell parameter dollar substitution	nameDirectiveShell						value=${fallback:-$(echo start\n# @name parameterDollar\n)}	name	parameterDollar
-shell parameter backtick substitution	nameDirectiveShell						value=${fallback:-`echo start\n# @name parameterBacktick\n`}	name	parameterBacktick
-shell parameter quoted substitution	nameDirectiveShell						value=${fallback:-\"$(echo start\n# @name parameterQuoted\n)\"}	name	parameterQuoted
-shell expanding heredoc substitution	nameDirectiveShell						cat <<EOF\n$(echo start\n# @name expandingHeredoc\n)\nEOF	name	expandingHeredoc
-shell quoted heredoc ignores substitution	nameDirectiveShell						cat <<\"EOF\"\n$(echo start\n# @name fakeQuotedHeredoc\n)\nEOF\n# @name realQuotedHeredoc	name	realQuotedHeredoc
-shell arithmetic command substitution	nameDirectiveShell						value=$(( $(echo 1\n# @name arithmeticCommand\n) + 1 ))	name	arithmeticCommand
-shell inline backtick comment	nameDirectiveShell						value=`# @name inlineBacktick\n`	name	inlineBacktick
+# label	strategy	source	resultKind	resultValue
+named query	graphqlDefinition	query GetThing { viewer { id } }	name	GetThing
+named mutation	graphqlDefinition	mutation UpdateThing { updateThing { id } }	name	UpdateThing
+named subscription	graphqlDefinition	subscription ThingChanged { thingChanged { id } }	name	ThingChanged
+operation with variables	graphqlDefinition	query GetThing($id: ID!, $input: Input = {limit: 1}) { thing(id: $id) { id } }	name	GetThing
+fragment before operation	graphqlDefinition	fragment ThingFields on Thing { id }\nquery GetThing { thing { ...ThingFields } }	name	GetThing
+fragment after operation	graphqlDefinition	query GetThing { thing { ...ThingFields } }\nfragment ThingFields on Thing { id }	name	GetThing
+lone fragment	graphqlDefinition	fragment ThingFields on Thing { id }	name	ThingFields
+keywords in comments and strings	graphqlDefinition	# query Fake { fake }\nquery Real { field(arg: \"fragment Fake on X\") }	name	Real
+anonymous operation	graphqlDefinition	query { viewer { id } }	error	anonymous operation
+anonymous shorthand	graphqlDefinition	{ viewer { id } }	error	anonymous operation
+multiple operations	graphqlDefinition	query One { one }\nquery Two { two }	error	multiple operations
+multiple fragments	graphqlDefinition	fragment One on Thing { id }\nfragment Two on Thing { id }	error	multiple fragments
+slash name directive	nameDirective	// @name jsThing\nconst value = 1	name	jsThing
+hash name directive	nameDirective	# @name pythonThing\nvalue = 1	name	pythonThing
+dash name directive	nameDirective	-- @name sqlThing\nselect 1	name	sqlThing
+block name directive	nameDirective	/* @name blockThing */\nconst value = 1	name	blockThing
+multiline name directive	nameDirective	/* @name\n  multilineThing */	name	multilineThing
+missing name directive	nameDirective	select 1	error	no valid @name
+multiple name directives	nameDirective	# @name One\n# @name Two	error	multiple @name

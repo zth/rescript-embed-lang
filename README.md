@@ -194,28 +194,19 @@ await client->run(Ga4Properties.default, variables)
 
 `GraphqlDefinition` uses the one named operation in a GraphQL document, ignoring any accompanying fragments. If there is no operation, a lone named fragment is accepted. Anonymous operations, multiple operations, and multiple fragments without an operation produce a generator and compile-time error.
 
-For languages that conventionally carry a name in a comment, choose the matching first-class directive strategy. PostgreSQL generators use `NameDirectivePostgreSQL`:
+For embeds that carry a name in their source, use `NameDirective`:
 
 ```rescript
 let embed = RescriptEmbedLang.make(
   ~extensionPattern=Generic("sql"),
-  ~generatedName=NameDirectivePostgreSQL,
+  ~generatedName=NameDirective,
   ~setup=RescriptEmbedLang.defaultSetup,
   ~generate,
   ~cliHelpText,
 )
 ```
 
-Each strategy recognizes exactly one `@name <identifier>` in real comments while ignoring strings and other language syntax:
-
-- `NameDirective` handles JavaScript `//` and non-nested `/* ... */` comments.
-- `NameDirectivePostgreSQL` handles `--`, nested `/* ... */`, quoted identifiers, ordinary and escape strings, and dollar-quoted strings.
-- `NameDirectiveShell` handles shell `#` comments, quoting, command substitutions, `${...}` parameter operations, arithmetic expansions, and heredoc bodies.
-- `NameDirectivePython` handles Python `#` comments, escaped quotes, and triple-quoted strings.
-
-The selected syntax is serialized into the generated PPX config, so generation and compilation use the same scanner.
-
-`Regex` remains available as an escape hatch for language-specific naming. It supports numbered or named captures and `ExactlyOne` or `First` cardinality, using ECMAScript regular-expression semantics in both runtimes.
+`NameDirective` finds exactly one `@name <identifier>` in the embedded source. It deliberately does not parse the host language, so generators should reserve `@name` for the naming directive and avoid including another `@name` in strings or examples.
 
 Generation must run before ReScript compilation. There are no source hashes in the generated API or PPX target; extracted names provide stable generated filenames and module references.
 
@@ -236,7 +227,7 @@ The generator writes a human-readable `rescript-embed-lang.json` beside its outp
 
 Use `--embed-lang-config <path>` on the generator only when the config should live somewhere other than `<output>/rescript-embed-lang.json`. Multiple generators can update different extension entries in the same file.
 
-The PPX loads the config lazily, only when it encounters a named `%generated.*` embed, and memoizes it for the rest of the process. First-class GraphQL and comment strategies use native scanners; QuickJS is initialized only for explicit `Regex` strategies.
+The PPX loads the config lazily, only when it encounters a named `%generated.*` embed, and memoizes it for the rest of the process.
 
 Generation is staged before commit, detects case-insensitive and user-module collisions, removes only files recorded in its ownership index, and includes extra emitted artifacts and config updates in the same transaction. The ownership index is removed when the extension has no embeds left; the config remains because it describes how future embeds for that extension compile. Watch runs are serialized and coalesced.
 

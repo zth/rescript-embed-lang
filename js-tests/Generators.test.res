@@ -45,11 +45,6 @@ module NamedGenerationFixture = {
   type fixtureCase = {
     label: string,
     strategy: string,
-    pattern: string,
-    flags: string,
-    captureKind: string,
-    captureValue: string,
-    cardinality: string,
     source: string,
     resultKind: string,
     resultValue: string,
@@ -77,7 +72,7 @@ module NamedGenerationFixture = {
         None
       } else {
         let fields = line->String.split("\t")
-        if fields->Array.length !== 10 {
+        if fields->Array.length !== 5 {
           panic(`invalid named-generation fixture row: ${line}`)
         }
         let getField = index =>
@@ -92,14 +87,9 @@ module NamedGenerationFixture = {
         Some({
           label: getField(0),
           strategy: getField(1),
-          pattern: getField(2),
-          flags: getField(3),
-          captureKind: getField(4),
-          captureValue: getField(5),
-          cardinality: getField(6),
-          source: getField(7),
-          resultKind: getField(8),
-          resultValue: getField(9),
+          source: getField(2),
+          resultKind: getField(3),
+          resultValue: getField(4),
         })
       }
     })
@@ -115,33 +105,11 @@ describe("named generation shared corpus", () => {
         let config = switch case.strategy {
         | "graphqlDefinition" => RescriptEmbedLang.GraphqlDefinition
         | "nameDirective" => RescriptEmbedLang.NameDirective
-        | "nameDirectivePostgreSQL" => RescriptEmbedLang.NameDirectivePostgreSQL
-        | "nameDirectiveShell" => RescriptEmbedLang.NameDirectiveShell
-        | "nameDirectivePython" => RescriptEmbedLang.NameDirectivePython
-        | "regex" =>
-          let capture = switch case.captureKind {
-          | "numbered" =>
-            RescriptEmbedLang.Numbered(case.captureValue->Int.fromString->Option.getOrThrow)
-          | "named" => RescriptEmbedLang.Named(case.captureValue)
-          | kind => panic(`unknown capture kind ${kind}`)
-          }
-          let cardinality = switch case.cardinality {
-          | "exactlyOne" => RescriptEmbedLang.ExactlyOne
-          | "first" => RescriptEmbedLang.First
-          | value => panic(`unknown cardinality ${value}`)
-          }
-          RescriptEmbedLang.Regex({
-            pattern: case.pattern,
-            flags: case.flags,
-            capture,
-            cardinality,
-          })
         | strategy => panic(`unknown naming strategy ${strategy}`)
         }
         let result = try {
           Ok(
             RescriptEmbedLang.GeneratedName.extract(
-              ~extension="fixture",
               ~source=case.source,
               config,
             ),
