@@ -91,3 +91,5 @@ Python f-string format hash ignored	nameDirectivePython						value = f'''{1:# @n
 JavaScript regex after instanceof	nameDirective						value instanceof /[/*] @name fake [*/]/.constructor; // @name realInstanceof	name	realInstanceof
 JavaScript regex after in	nameDirective						key in /[/*] @name fake [*/]/.groups; // @name realIn	name	realIn
 JavaScript keyword property division	nameDirective						const ratio = obj.in / 2; // @name realKeywordProperty	name	realKeywordProperty
+JavaScript keyword property after block comment	nameDirective						const ratio = obj. /* gap */ in / 2; // @name realBlockProperty	name	realBlockProperty
+JavaScript keyword property after line comment	nameDirective						const ratio = obj. // gap\n in / 2; // @name realLineProperty	name	realLineProperty

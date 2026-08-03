@@ -401,6 +401,37 @@ let extract_name_directive ~syntax source =
       else if is_whitespace source.[offset] then previous_significant (offset - 1)
       else Some source.[offset]
     in
+    let previous_javascript_code start =
+      let cursor = ref start in
+      let searching = ref true in
+      while !searching do
+        while !cursor >= 0 && is_whitespace source.[!cursor] do
+          decr cursor
+        done;
+        if !cursor >= 1 && starts_with_at source (!cursor - 1) "*/" then (
+          let opening = ref (!cursor - 2) in
+          while !opening >= 0 && not (starts_with_at source !opening "/*") do
+            decr opening
+          done;
+          if !opening >= 0 then cursor := !opening - 1 else searching := false)
+        else
+          let line_start = ref !cursor in
+          while !line_start > 0 && source.[!line_start - 1] <> '\n'
+                && source.[!line_start - 1] <> '\r'
+          do
+            decr line_start
+          done;
+          let line_comment = ref None in
+          let scan = ref !line_start in
+          while !scan < !cursor && Option.is_none !line_comment do
+            if starts_with_at source !scan "//" then line_comment := Some !scan else incr scan
+          done;
+          match !line_comment with
+          | Some comment_start -> cursor := comment_start - 1
+          | None -> searching := false
+      done;
+      !cursor
+    in
     let follows_control_condition close_paren =
       let rec find_open offset depth =
         if offset < 0 then None
@@ -487,7 +518,8 @@ let extract_name_directive ~syntax source =
           last_significant (index - 1)
         in
         let start = word_start (end_ - 1) in
-        previous_significant (start - 1) <> Some '.'
+        let previous = previous_javascript_code (start - 1) in
+        (previous < 0 || source.[previous] <> '.')
         && List.mem (String.sub source start (end_ - start))
           [
             "return";

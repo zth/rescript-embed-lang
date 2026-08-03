@@ -274,6 +274,56 @@ module GeneratedName = {
       while cursor.contents >= 0 && isWhitespace(source->String.charAt(cursor.contents)) {
         cursor := cursor.contents - 1
       }
+      let previousJavaScriptCode = start => {
+        let cursor = ref(start)
+        let searching = ref(true)
+        while searching.contents {
+          while cursor.contents >= 0 && isWhitespace(source->String.charAt(cursor.contents)) {
+            cursor := cursor.contents - 1
+          }
+          if (
+            cursor.contents >= 1 &&
+            source->String.slice(~start=cursor.contents - 1, ~end=cursor.contents + 1) === "*/"
+          ) {
+            let opening = ref(cursor.contents - 2)
+            while (
+              opening.contents >= 0 &&
+              source->String.slice(~start=opening.contents, ~end=opening.contents + 2) !== "/*"
+            ) {
+              opening := opening.contents - 1
+            }
+            if opening.contents >= 0 {
+              cursor := opening.contents - 1
+            } else {
+              searching := false
+            }
+          } else {
+            let lineStart = ref(cursor.contents)
+            while (
+              lineStart.contents > 0 &&
+              source->String.charAt(lineStart.contents - 1) !== "\n" &&
+              source->String.charAt(lineStart.contents - 1) !== "\r"
+            ) {
+              lineStart := lineStart.contents - 1
+            }
+            let lineComment = ref(-1)
+            let scan = ref(lineStart.contents)
+            while scan.contents < cursor.contents && lineComment.contents < 0 {
+              if source->String.slice(~start=scan.contents, ~end=scan.contents + 2) === "//" {
+                lineComment := scan.contents
+              } else {
+                scan := scan.contents + 1
+              }
+            }
+            if lineComment.contents >= 0 {
+              cursor := lineComment.contents - 1
+            } else {
+              searching := false
+            }
+          }
+        }
+        cursor.contents
+      }
       let followsControlCondition = closeParen => {
         let depth = ref(1)
         let openParen = ref(closeParen - 1)
@@ -365,7 +415,7 @@ module GeneratedName = {
         while cursor.contents >= 0 && isWhitespace(source->String.charAt(cursor.contents)) {
           cursor := cursor.contents - 1
         }
-        source->String.charAt(cursor.contents) !== "." && [
+        source->String.charAt(previousJavaScriptCode(cursor.contents)) !== "." && [
           "return",
           "throw",
           "case",
