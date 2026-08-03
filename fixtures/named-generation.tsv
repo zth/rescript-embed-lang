@@ -84,14 +84,3 @@ shell expanding heredoc substitution	nameDirectiveShell						cat <<EOF\n$(echo s
 shell quoted heredoc ignores substitution	nameDirectiveShell						cat <<\"EOF\"\n$(echo start\n# @name fakeQuotedHeredoc\n)\nEOF\n# @name realQuotedHeredoc	name	realQuotedHeredoc
 shell arithmetic command substitution	nameDirectiveShell						value=$(( $(echo 1\n# @name arithmeticCommand\n) + 1 ))	name	arithmeticCommand
 shell inline backtick comment	nameDirectiveShell						value=`# @name inlineBacktick\n`	name	inlineBacktick
-Python triple f-string field comment	nameDirectivePython						value = f'''{1\n# @name pythonTripleField\n}'''	name	pythonTripleField
-Python regular f-string field comment	nameDirectivePython						value = f\"{1\n# @name pythonRegularField\n}\"	name	pythonRegularField
-Python f-string literal hash ignored	nameDirectivePython						value = f'''# @name fake {1}'''\n# @name realPythonFString	name	realPythonFString
-Python f-string format hash ignored	nameDirectivePython						value = f'''{1:# @name fake}'''\n# @name realPythonFormat	name	realPythonFormat
-JavaScript regex after instanceof	nameDirective						value instanceof /[/*] @name fake [*/]/.constructor; // @name realInstanceof	name	realInstanceof
-JavaScript regex after in	nameDirective						key in /[/*] @name fake [*/]/.groups; // @name realIn	name	realIn
-JavaScript keyword property division	nameDirective						const ratio = obj.in / 2; // @name realKeywordProperty	name	realKeywordProperty
-JavaScript keyword property after block comment	nameDirective						const ratio = obj. /* gap */ in / 2; // @name realBlockProperty	name	realBlockProperty
-JavaScript keyword property after line comment	nameDirective						const ratio = obj. // gap\n in / 2; // @name realLineProperty	name	realLineProperty
-JavaScript keyword property after nested-looking comment	nameDirective						const ratio = obj. /* mention /* token */ in / 2; // @name realNestedLookingProperty	name	realNestedLookingProperty
-JavaScript keyword property after earlier marker string	nameDirective						const text = \"/*\"; const ratio = obj. /* gap */ in / 2; // @name realEarlierMarkerProperty	name	realEarlierMarkerProperty

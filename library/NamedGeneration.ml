@@ -500,8 +500,6 @@ let extract_name_directive ~syntax source =
             "new";
             "else";
             "do";
-            "instanceof";
-            "in";
           ]
     | Some _ -> false
   in
@@ -541,123 +539,6 @@ let extract_name_directive ~syntax source =
       skip_triple_quoted (index + 1) delimiter true
     else if starts_with_at source index delimiter then index + String.length delimiter
     else skip_triple_quoted (index + 1) delimiter false
-  in
-  let python_fstring_names = ref [] in
-  let python_fstring_prefix quote_index =
-    let is_ascii_letter character =
-      (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z')
-    in
-    let start = ref quote_index in
-    while !start > 0 && quote_index - !start < 2 && is_ascii_letter source.[!start - 1] do
-      decr start
-    done;
-    let prefix = String.lowercase_ascii (String.sub source !start (quote_index - !start)) in
-    List.mem prefix [ "f"; "fr"; "rf" ]
-    && (!start = 0 || not (is_name_continue source.[!start - 1]))
-  in
-  let rec scan_python_fstring start delimiter =
-    let delimiter_length = String.length delimiter in
-    let rec fstring_line_end index =
-      if index < length && not (Char.equal source.[index] '\n')
-         && not (Char.equal source.[index] '\r')
-      then fstring_line_end (index + 1)
-      else index
-    in
-    let skip_string start =
-      let quote = source.[start] in
-      let string_delimiter =
-        let triple = String.make 3 quote in
-        if starts_with_at source start triple then triple else String.make 1 quote
-      in
-      let delimiter_length = String.length string_delimiter in
-      let rec loop index escaped =
-        if index >= length then index
-        else if escaped then loop (index + 1) false
-        else if Char.equal source.[index] '\\' then loop (index + 1) true
-        else if starts_with_at source index string_delimiter then index + delimiter_length
-        else loop (index + 1) false
-      in
-      loop (start + delimiter_length) false
-    in
-    let rec scan_expression start =
-      let cursor = ref start in
-      let brace_depth = ref 1 in
-      let paren_depth = ref 0 in
-      let bracket_depth = ref 0 in
-      let closed = ref false in
-      while !cursor < length && not !closed do
-        let character = source.[!cursor] in
-        if Char.equal character '#' then (
-          let comment_end = fstring_line_end (!cursor + 1) in
-          python_fstring_names :=
-            List.rev_append
-              (names_in_comment
-                 (String.sub source (!cursor + 1) (comment_end - !cursor - 1)))
-              !python_fstring_names;
-          cursor := comment_end)
-        else if Char.equal character '"' || Char.equal character '\'' then
-          if python_fstring_prefix !cursor then
-            let triple = String.make 3 character in
-            let nested_delimiter =
-              if starts_with_at source !cursor triple then triple else String.make 1 character
-            in
-            cursor :=
-              scan_python_fstring (!cursor + String.length nested_delimiter) nested_delimiter
-          else cursor := skip_string !cursor
-        else if Char.equal character '(' then (
-          incr paren_depth;
-          incr cursor)
-        else if Char.equal character ')' then (
-          if !paren_depth > 0 then decr paren_depth;
-          incr cursor)
-        else if Char.equal character '[' then (
-          incr bracket_depth;
-          incr cursor)
-        else if Char.equal character ']' then (
-          if !bracket_depth > 0 then decr bracket_depth;
-          incr cursor)
-        else if Char.equal character '{' then (
-          incr brace_depth;
-          incr cursor)
-        else if Char.equal character '}' then (
-          decr brace_depth;
-          incr cursor;
-          if !brace_depth = 0 then closed := true)
-        else if Char.equal character ':' && !brace_depth = 1 && !paren_depth = 0
-                && !bracket_depth = 0
-                && (!cursor + 1 >= length || not (Char.equal source.[!cursor + 1] '='))
-        then (
-          incr cursor;
-          let format_closed = ref false in
-          while !cursor < length && not !format_closed do
-            if starts_with_at source !cursor "{{" || starts_with_at source !cursor "}}" then
-              cursor := !cursor + 2
-            else if Char.equal source.[!cursor] '{' then
-              cursor := scan_expression (!cursor + 1)
-            else if Char.equal source.[!cursor] '}' then (
-              incr cursor;
-              format_closed := true;
-              closed := true)
-            else incr cursor
-          done)
-        else incr cursor
-      done;
-      !cursor
-    in
-    let cursor = ref start in
-    let closed = ref false in
-    while !cursor < length && not !closed do
-      if starts_with_at source !cursor delimiter then (
-        cursor := !cursor + delimiter_length;
-        closed := true)
-      else if starts_with_at source !cursor "{{" then cursor := !cursor + 2
-      else if Char.equal source.[!cursor] '{' then
-        cursor := scan_expression (!cursor + 1)
-      else if Char.equal source.[!cursor] '\\' then
-        cursor := min (!cursor + 2) length
-      else incr cursor
-    done;
-    !cursor
   in
   let rec line_end index =
     if index < length && source.[index] <> '\n' && source.[index] <> '\r' then
@@ -931,8 +812,6 @@ let extract_name_directive ~syntax source =
   let shell_command_backtick = ref false in
   let pending_shell_heredocs = ref [] in
   let shell_quoted_contexts = ref [] in
-  let javascript_previous_token_was_dot = ref false in
-  let javascript_last_identifier_was_member = ref false in
   let set_shell_quoted_context value =
     match !shell_quoted_contexts with
     | _ :: rest -> shell_quoted_contexts := value :: rest
@@ -1050,23 +929,11 @@ let extract_name_directive ~syntax source =
           loop (index + 1) names ((depth - 1) :: rest)
       | _ -> (
           match source.[index] with
-          | character when is_javascript && is_name_start character ->
-              let rec identifier_end offset =
-                if offset < length && is_name_continue source.[offset] then
-                  identifier_end (offset + 1)
-                else offset
-              in
-              javascript_last_identifier_was_member := !javascript_previous_token_was_dot;
-              javascript_previous_token_was_dot := false;
-              loop (identifier_end (index + 1)) names template_depths
           | '/'
             when is_javascript
                  && not (starts_with_at source index "//")
                  && not (starts_with_at source index "/*")
-                 && not !javascript_last_identifier_was_member
                  && can_start_regex_literal index ->
-              javascript_last_identifier_was_member := false;
-              javascript_previous_token_was_dot := false;
               loop
                 (skip_regex_flags
                    (skip_regex_literal (index + 1) ~escaped:false ~in_class:false))
@@ -1076,19 +943,7 @@ let extract_name_directive ~syntax source =
               | Some (delimiter, content_start) ->
                   loop (skip_dollar_quoted content_start delimiter) names template_depths
               | None -> loop (index + 1) names template_depths)
-          | '`' when is_javascript ->
-              javascript_last_identifier_was_member := false;
-              javascript_previous_token_was_dot := false;
-              loop (index + 1) names (0 :: template_depths)
-          | (('"' | '\'') as quote)
-            when is_python && python_fstring_prefix index ->
-              let triple = String.make 3 quote in
-              let delimiter =
-                if starts_with_at source index triple then triple else String.make 1 quote
-              in
-              loop
-                (scan_python_fstring (index + String.length delimiter) delimiter)
-                names template_depths
+          | '`' when is_javascript -> loop (index + 1) names (0 :: template_depths)
           | (('"' | '\'') as quote)
             when is_python && starts_with_at source index (String.make 3 quote) ->
               let delimiter = String.make 3 quote in
@@ -1114,9 +969,6 @@ let extract_name_directive ~syntax source =
               shell_quoted_contexts := 0 :: !shell_quoted_contexts;
               loop (index + 1) names template_depths
           | (('"' | '\'') as quote) ->
-              if is_javascript then (
-                javascript_last_identifier_was_member := false;
-                javascript_previous_token_was_dot := false);
               let backslash_escapes =
                 is_javascript || is_python || (is_shell && not (Char.equal quote '\''))
                 || (Char.equal quote '\'' && index > 0
@@ -1149,16 +1001,9 @@ let extract_name_directive ~syntax source =
               let end_, depth = block_end (index + 2) 1 in
               let next = if depth = 0 then end_ + 2 else end_ in
               loop next (add_comment (index + 2) end_ names) template_depths
-          | character ->
-              if is_javascript && not (is_whitespace character) then (
-                javascript_last_identifier_was_member := false;
-                javascript_previous_token_was_dot := Char.equal character '.');
-              loop (index + 1) names template_depths)
+          | _ -> loop (index + 1) names template_depths)
   in
-  match
-    List.rev_append !python_fstring_names
-      (List.rev_append !shell_expansion_names (loop 0 [] []))
-  with
+  match List.rev_append !shell_expansion_names (loop 0 [] []) with
   | [ name ] -> name
   | [] -> failwith "no valid @name <identifier> directive was found in a comment"
   | _ ->

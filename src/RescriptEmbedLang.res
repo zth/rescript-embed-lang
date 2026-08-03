@@ -362,9 +362,6 @@ module GeneratedName = {
           cursor := cursor.contents - 1
         }
         let word = source->String.slice(~start=cursor.contents + 1, ~end=wordEnd)
-        while cursor.contents >= 0 && isWhitespace(source->String.charAt(cursor.contents)) {
-          cursor := cursor.contents - 1
-        }
         [
           "return",
           "throw",
@@ -377,8 +374,6 @@ module GeneratedName = {
           "new",
           "else",
           "do",
-          "instanceof",
-          "in",
         ]->Array.includes(word)
       } else {
         false
@@ -386,8 +381,6 @@ module GeneratedName = {
     }
     let templateDepths: array<int> = []
     let templateCount = ref(0)
-    let javaScriptPreviousTokenWasDot = ref(false)
-    let javaScriptLastIdentifierWasMember = ref(false)
     let shellParameterDepth = ref(0)
     let shellParameterCommandDepth = ref(0)
     let shellParameterBacktick = ref(false)
@@ -664,174 +657,6 @@ module GeneratedName = {
       }
     let skipShellArithmetic = start =>
       scanShellExpansionRegion(~start=start + 3, ~end_=length, ~mode=3, ~depth=2)
-    let isPythonFStringQuote = quoteIndex => {
-      let isAsciiLetter = character =>
-        (character >= "a" && character <= "z") ||
-        (character >= "A" && character <= "Z")
-      let prefixStart = ref(quoteIndex)
-      while (
-        prefixStart.contents > 0 &&
-        quoteIndex - prefixStart.contents < 2 &&
-        isAsciiLetter(source->String.charAt(prefixStart.contents - 1))
-      ) {
-        prefixStart := prefixStart.contents - 1
-      }
-      let prefix =
-        source
-        ->String.slice(~start=prefixStart.contents, ~end=quoteIndex)
-        ->String.toLowerCase
-      (prefix === "f" || prefix === "fr" || prefix === "rf") &&
-      (prefixStart.contents === 0 ||
-        !isNameContinue(source->String.charAt(prefixStart.contents - 1)))
-    }
-    let rec scanPythonFString = (~start, ~delimiter) => {
-      let skipString = start => {
-        let quote = source->String.charAt(start)
-        let stringDelimiter =
-          if source->String.slice(~start, ~end=start + 3) === quote ++ quote ++ quote {
-            quote ++ quote ++ quote
-          } else {
-            quote
-          }
-        let cursor = ref(start + stringDelimiter->String.length)
-        let escaped = ref(false)
-        let closed = ref(false)
-        while cursor.contents < length && !closed.contents {
-          if escaped.contents {
-            escaped := false
-            cursor := cursor.contents + 1
-          } else if source->String.charAt(cursor.contents) === "\\" {
-            escaped := true
-            cursor := cursor.contents + 1
-          } else if (
-            source->String.slice(
-              ~start=cursor.contents,
-              ~end=cursor.contents + stringDelimiter->String.length,
-            ) === stringDelimiter
-          ) {
-            cursor := cursor.contents + stringDelimiter->String.length
-            closed := true
-          } else {
-            cursor := cursor.contents + 1
-          }
-        }
-        cursor.contents
-      }
-      let rec scanExpression = start => {
-        let cursor = ref(start)
-        let braceDepth = ref(1)
-        let parenDepth = ref(0)
-        let bracketDepth = ref(0)
-        let closed = ref(false)
-        while cursor.contents < length && !closed.contents {
-          let character = source->String.charAt(cursor.contents)
-          if character === "#" {
-            let commentEnd = ref(cursor.contents + 1)
-            while (
-              commentEnd.contents < length &&
-              source->String.charAt(commentEnd.contents) !== "\n" &&
-              source->String.charAt(commentEnd.contents) !== "\r"
-            ) {
-              commentEnd := commentEnd.contents + 1
-            }
-            namesInComment(
-              source->String.slice(~start=cursor.contents + 1, ~end=commentEnd.contents),
-            )->Array.forEach(name => names->Array.push(name))
-            cursor := commentEnd.contents
-          } else if character === "\"" || character === "'" {
-            if isPythonFStringQuote(cursor.contents) {
-              let nestedDelimiter =
-                if source->String.slice(~start=cursor.contents, ~end=cursor.contents + 3) ===
-                  character ++ character ++ character {
-                  character ++ character ++ character
-                } else {
-                  character
-                }
-              cursor := scanPythonFString(
-                ~start=cursor.contents + nestedDelimiter->String.length,
-                ~delimiter=nestedDelimiter,
-              )
-            } else {
-              cursor := skipString(cursor.contents)
-            }
-          } else if character === "(" {
-            parenDepth := parenDepth.contents + 1
-            cursor := cursor.contents + 1
-          } else if character === ")" {
-            if parenDepth.contents > 0 {
-              parenDepth := parenDepth.contents - 1
-            }
-            cursor := cursor.contents + 1
-          } else if character === "[" {
-            bracketDepth := bracketDepth.contents + 1
-            cursor := cursor.contents + 1
-          } else if character === "]" {
-            if bracketDepth.contents > 0 {
-              bracketDepth := bracketDepth.contents - 1
-            }
-            cursor := cursor.contents + 1
-          } else if character === "{" {
-            braceDepth := braceDepth.contents + 1
-            cursor := cursor.contents + 1
-          } else if character === "}" {
-            braceDepth := braceDepth.contents - 1
-            cursor := cursor.contents + 1
-            if braceDepth.contents === 0 {
-              closed := true
-            }
-          } else if (
-            character === ":" &&
-            braceDepth.contents === 1 &&
-            parenDepth.contents === 0 &&
-            bracketDepth.contents === 0 &&
-            source->String.charAt(cursor.contents + 1) !== "="
-          ) {
-            cursor := cursor.contents + 1
-            let formatClosed = ref(false)
-            while cursor.contents < length && !formatClosed.contents {
-              if source->String.slice(~start=cursor.contents, ~end=cursor.contents + 2) === "{{" {
-                cursor := cursor.contents + 2
-              } else if source->String.slice(~start=cursor.contents, ~end=cursor.contents + 2) === "}}" {
-                cursor := cursor.contents + 2
-              } else if source->String.charAt(cursor.contents) === "{" {
-                cursor := scanExpression(cursor.contents + 1)
-              } else if source->String.charAt(cursor.contents) === "}" {
-                cursor := cursor.contents + 1
-                formatClosed := true
-                closed := true
-              } else {
-                cursor := cursor.contents + 1
-              }
-            }
-          } else {
-            cursor := cursor.contents + 1
-          }
-        }
-        cursor.contents
-      }
-      let cursor = ref(start)
-      let closed = ref(false)
-      while cursor.contents < length && !closed.contents {
-        if (
-          source->String.slice(
-            ~start=cursor.contents,
-            ~end=cursor.contents + delimiter->String.length,
-          ) === delimiter
-        ) {
-          cursor := cursor.contents + delimiter->String.length
-          closed := true
-        } else if source->String.slice(~start=cursor.contents, ~end=cursor.contents + 2) === "{{" {
-          cursor := cursor.contents + 2
-        } else if source->String.charAt(cursor.contents) === "{" {
-          cursor := scanExpression(cursor.contents + 1)
-        } else if source->String.charAt(cursor.contents) === "\\" {
-          cursor := if cursor.contents + 2 < length { cursor.contents + 2 } else { length }
-        } else {
-          cursor := cursor.contents + 1
-        }
-      }
-      cursor.contents
-    }
     while index.contents < length {
       let character = source->String.charAt(index.contents)
       let templateDepth = if templateCount.contents > 0 {
@@ -979,27 +804,13 @@ module GeneratedName = {
         templateDepths[templateCount.contents - 1] = depth - 1
         index := index.contents + 1
       | _ =>
-        if isJavaScript && isNameStart(character) {
-          let identifierEnd = ref(index.contents + 1)
-          while (
-            identifierEnd.contents < length &&
-            isNameContinue(source->String.charAt(identifierEnd.contents))
-          ) {
-            identifierEnd := identifierEnd.contents + 1
-          }
-          javaScriptLastIdentifierWasMember := javaScriptPreviousTokenWasDot.contents
-          javaScriptPreviousTokenWasDot := false
-          index := identifierEnd.contents
-        } else if (
+        if (
           isJavaScript &&
           character === "/" &&
           source->String.charAt(index.contents + 1) !== "/" &&
           source->String.charAt(index.contents + 1) !== "*" &&
-          !javaScriptLastIdentifierWasMember.contents &&
           canStartRegexLiteral(index.contents)
         ) {
-          javaScriptLastIdentifierWasMember := false
-          javaScriptPreviousTokenWasDot := false
           index := index.contents + 1
           let escaped = ref(false)
           let inClass = ref(false)
@@ -1060,27 +871,9 @@ module GeneratedName = {
             index := index.contents + 1
           }
         } else if isJavaScript && character === "`" {
-          javaScriptLastIdentifierWasMember := false
-          javaScriptPreviousTokenWasDot := false
           templateDepths[templateCount.contents] = 0
           templateCount := templateCount.contents + 1
           index := index.contents + 1
-        } else if (
-          isPython &&
-          (character === "\"" || character === "'") &&
-          isPythonFStringQuote(index.contents)
-        ) {
-          let delimiter =
-            if source->String.slice(~start=index.contents, ~end=index.contents + 3) ===
-              character ++ character ++ character {
-              character ++ character ++ character
-            } else {
-              character
-            }
-          index := scanPythonFString(
-            ~start=index.contents + delimiter->String.length,
-            ~delimiter,
-          )
         } else if (
           isPython &&
           (character === "\"" || character === "'") &&
@@ -1139,10 +932,6 @@ module GeneratedName = {
           shellQuotedContextCount := shellQuotedContextCount.contents + 1
           index := index.contents + 1
         } else if character === "\"" || character === "'" {
-          if isJavaScript {
-            javaScriptLastIdentifierWasMember := false
-            javaScriptPreviousTokenWasDot := false
-          }
           let quote = character
           let escapesWithBackslash =
             isJavaScript ||
@@ -1245,10 +1034,6 @@ module GeneratedName = {
                 end_.contents
               }
           } else {
-            if isJavaScript && !isWhitespace(character) {
-              javaScriptLastIdentifierWasMember := false
-              javaScriptPreviousTokenWasDot := character === "."
-            }
             index := index.contents + 1
           }
         }
