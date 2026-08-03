@@ -492,6 +492,14 @@ let extract_name_directive ~syntax source =
       else index + 1
     else skip_quoted (index + 1) quote ~backslash_escapes false
   in
+  let rec skip_triple_quoted index delimiter escaped =
+    if index >= length then index
+    else if escaped then skip_triple_quoted (index + 1) delimiter false
+    else if Char.equal source.[index] '\\' then
+      skip_triple_quoted (index + 1) delimiter true
+    else if starts_with_at source index delimiter then index + String.length delimiter
+    else skip_triple_quoted (index + 1) delimiter false
+  in
   let rec line_end index =
     if index < length && source.[index] <> '\n' && source.[index] <> '\r' then
       line_end (index + 1)
@@ -508,8 +516,18 @@ let extract_name_directive ~syntax source =
   let add_comment start end_ names =
     List.rev_append (names_in_comment (String.sub source start (end_ - start))) names
   in
+  let shell_parameter_depth = ref 0 in
   let rec loop index names template_depths =
     if index >= length then List.rev names
+    else if is_hash && starts_with_at source index "${" then (
+      incr shell_parameter_depth;
+      loop (index + 2) names template_depths)
+    else if is_hash && !shell_parameter_depth > 0 && Char.equal source.[index] '{' then (
+      incr shell_parameter_depth;
+      loop (index + 1) names template_depths)
+    else if is_hash && !shell_parameter_depth > 0 && Char.equal source.[index] '}' then (
+      decr shell_parameter_depth;
+      loop (index + 1) names template_depths)
     else
       match template_depths with
       | 0 :: rest -> (
@@ -540,6 +558,12 @@ let extract_name_directive ~syntax source =
                   loop (skip_dollar_quoted content_start delimiter) names template_depths
               | None -> loop (index + 1) names template_depths)
           | '`' when is_javascript -> loop (index + 1) names (0 :: template_depths)
+          | (('"' | '\'') as quote)
+            when is_hash && starts_with_at source index (String.make 3 quote) ->
+              let delimiter = String.make 3 quote in
+              loop
+                (skip_triple_quoted (index + 3) delimiter false)
+                names template_depths
           | (('"' | '\'') as quote) | ('`' as quote) when not (Char.equal quote '`') || is_hash ->
               let backslash_escapes =
                 not is_postgresql
@@ -551,7 +575,7 @@ let extract_name_directive ~syntax source =
               loop
                 (skip_quoted (index + 1) quote ~backslash_escapes false)
                 names template_depths
-          | '#' when is_hash ->
+          | '#' when is_hash && !shell_parameter_depth = 0 ->
               let end_ = line_end (index + 1) in
               loop end_ (add_comment (index + 1) end_ names) template_depths
           | '/' when is_javascript && starts_with_at source index "//" ->

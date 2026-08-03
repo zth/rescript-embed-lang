@@ -18,6 +18,8 @@ keywords in comments and strings	graphqlDefinition						# query Fake { nope }\nq
 keywords in block string	graphqlDefinition						query BlockString { field(arg: \"\"\"mutation Fake { nope }\"\"\") }	name	BlockString
 hash name directive	nameDirectiveHash						# @name edgeThing\nselect 1	name	edgeThing
 hash comment starts with identifier	nameDirectiveHash						#documentation @name documentedThing	name	documentedThing
+shell parameter trimming	nameDirectiveHash						value=${path#prefix}; echo \"@name fake\"; # @name realShell	name	realShell
+Python triple-quoted string	nameDirectiveHash						text = \"\"\"say \" # @name fake\n\"\"\"\n# @name realPython	name	realPython
 slash name directive	nameDirective						// @name jsThing\nconst value = 1	name	jsThing
 CR-only name directive	nameDirective						// @name carriageName\rconst value = 1	name	carriageName
 dash name directive	nameDirectivePostgreSQL						-- @name sqlThing\nselect 1	name	sqlThing

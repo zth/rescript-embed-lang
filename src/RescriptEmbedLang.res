@@ -342,6 +342,7 @@ module GeneratedName = {
     }
     let templateDepths: array<int> = []
     let templateCount = ref(0)
+    let shellParameterDepth = ref(0)
     while index.contents < length {
       let character = source->String.charAt(index.contents)
       let templateDepth = if templateCount.contents > 0 {
@@ -350,6 +351,15 @@ module GeneratedName = {
         None
       }
       switch templateDepth {
+      | _ if isHash && character === "$" && source->String.charAt(index.contents + 1) === "{" =>
+        shellParameterDepth := shellParameterDepth.contents + 1
+        index := index.contents + 2
+      | _ if isHash && shellParameterDepth.contents > 0 && character === "{" =>
+        shellParameterDepth := shellParameterDepth.contents + 1
+        index := index.contents + 1
+      | _ if isHash && shellParameterDepth.contents > 0 && character === "}" =>
+        shellParameterDepth := shellParameterDepth.contents - 1
+        index := index.contents + 1
       | Some(0) =>
         if character === "\\" {
           index := if index.contents + 2 < length {
@@ -443,6 +453,32 @@ module GeneratedName = {
           templateDepths[templateCount.contents] = 0
           templateCount := templateCount.contents + 1
           index := index.contents + 1
+        } else if (
+          isHash &&
+          (character === "\"" || character === "'") &&
+          source->String.slice(~start=index.contents, ~end=index.contents + 3) ===
+            character ++ character ++ character
+        ) {
+          let delimiter = character ++ character ++ character
+          index := index.contents + 3
+          let escaped = ref(false)
+          let closed = ref(false)
+          while index.contents < length && !closed.contents {
+            if escaped.contents {
+              escaped := false
+              index := index.contents + 1
+            } else if source->String.charAt(index.contents) === "\\" {
+              escaped := true
+              index := index.contents + 1
+            } else if (
+              source->String.slice(~start=index.contents, ~end=index.contents + 3) === delimiter
+            ) {
+              closed := true
+              index := index.contents + 3
+            } else {
+              index := index.contents + 1
+            }
+          }
         } else if character === "\"" || character === "'" || (isHash && character === "`") {
           let quote = character
           let escapesWithBackslash =
@@ -473,7 +509,7 @@ module GeneratedName = {
           }
         } else {
           let lineComment =
-            (isHash && character === "#") ||
+            (isHash && shellParameterDepth.contents === 0 && character === "#") ||
             isJavaScript &&
             character === "/" &&
             source->String.charAt(index.contents + 1) === "/" ||
