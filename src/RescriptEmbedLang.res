@@ -268,6 +268,14 @@ module GeneratedName = {
       character === ")" ||
       character === "]" ||
       character === "}"
+    let isSqlStringTerminatorAfter = start => {
+      let cursor = ref(start)
+      while cursor.contents < length && isWhitespace(source->String.charAt(cursor.contents)) {
+        cursor := cursor.contents + 1
+      }
+      let character = source->String.charAt(cursor.contents)
+      isSqlStringTerminator(character) || "+-*/%^<>=|&#!~?:."->String.includes(character)
+    }
     let hasSingleQuoteBeforeLineEnd = start => {
       let cursor = ref(start)
       let found = ref(false)
@@ -488,7 +496,7 @@ module GeneratedName = {
                 (escapesWithBackslash ||
                 (quote === "'" &&
                 source->String.charAt(index.contents) === "'" &&
-                !isSqlStringTerminator(source->String.charAt(index.contents + 1)) &&
+                !isSqlStringTerminatorAfter(index.contents + 1) &&
                 hasSingleQuoteBeforeLineEnd(index.contents + 1)))
             ) {
               escaped := true
@@ -505,7 +513,8 @@ module GeneratedName = {
             (character === "#" &&
             source->String.charAt(index.contents + 1) !== ">" &&
             source->String.charAt(index.contents + 1) !== "-" &&
-            source->String.charAt(index.contents + 1) !== "#") ||
+            source->String.charAt(index.contents + 1) !== "#" &&
+            !isNameStart(source->String.charAt(index.contents + 1))) ||
             character === "/" && source->String.charAt(index.contents + 1) === "/" ||
             (character === "-" &&
             source->String.charAt(index.contents + 1) === "-" &&

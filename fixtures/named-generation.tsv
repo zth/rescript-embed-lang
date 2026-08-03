@@ -31,6 +31,7 @@ dollar quote requires boundary	nameDirective						SELECT foo$tag$ FROM items;\n-
 unicode dollar quote boundary	nameDirective						SELECT é$tag$ FROM items;\n-- @name getUnicodeItems	name	getUnicodeItems
 ordinary SQL string final backslash	nameDirective						SELECT '\\'; -- @name getThing	name	getThing
 multiple ordinary SQL strings	nameDirective						SELECT '\\', 'x'; -- @name getMultiple	name	getMultiple
+ordinary SQL string before concatenation	nameDirective						SELECT '\\' || 'x'; -- @name getConcatenated	name	getConcatenated
 escape SQL string backslash quote	nameDirective						SELECT E'it\\'s -- @name fake';\n-- @name realEscape	name	realEscape
 JavaScript single quote escape	nameDirective						const value = 'it\\'s // @name fake'; // @name realJs	name	realJs
 JavaScript regex literal	nameDirective						const value = /# @name fake/;\n// @name realRegex	name	realRegex
@@ -41,6 +42,7 @@ JavaScript regex after else	nameDirective						if (ready) work(); else /# @name 
 JavaScript postfix division	nameDirective						i++ / 2; // @name realPostfixDivision	name	realPostfixDivision
 JavaScript postfix decrement	nameDirective						value--; const label = \"@name fake\";\n// @name realPostfixDecrement	name	realPostfixDecrement
 JavaScript prefix decrement	nameDirective						--value; const label = \"@name fake\";\n// @name realPrefixDecrement	name	realPrefixDecrement
+JavaScript private field	nameDirective						class C { #label = \"@name fake\"; }\n// @name realPrivateField	name	realPrivateField
 JavaScript template interpolation comment	nameDirective						const value = `${1 /* @name embedded */}`;	name	embedded
 JavaScript template raw text ignored	nameDirective						const value = `/* @name fake */ ${{value: 1 /* @name embeddedObject */}.value}`;	name	embeddedObject
 JavaScript nested template interpolation	nameDirective						const value = `${`nested ${1 /* @name nestedTemplate */}`}`;	name	nestedTemplate
