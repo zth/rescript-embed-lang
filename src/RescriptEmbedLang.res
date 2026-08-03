@@ -269,8 +269,36 @@ module GeneratedName = {
       while cursor.contents >= 0 && isWhitespace(source->String.charAt(cursor.contents)) {
         cursor := cursor.contents - 1
       }
+      let followsControlCondition = closeParen => {
+        let depth = ref(1)
+        let openParen = ref(closeParen - 1)
+        while openParen.contents >= 0 && depth.contents > 0 {
+          switch source->String.charAt(openParen.contents) {
+          | ")" => depth := depth.contents + 1
+          | "(" => depth := depth.contents - 1
+          | _ => ()
+          }
+          openParen := openParen.contents - 1
+        }
+        if depth.contents !== 0 {
+          false
+        } else {
+          while openParen.contents >= 0 && isWhitespace(source->String.charAt(openParen.contents)) {
+            openParen := openParen.contents - 1
+          }
+          let wordEnd = openParen.contents + 1
+          while openParen.contents >= 0 && isNameContinue(source->String.charAt(openParen.contents)) {
+            openParen := openParen.contents - 1
+          }
+          ["if", "while", "for", "with"]->Array.includes(
+            source->String.slice(~start=openParen.contents + 1, ~end=wordEnd),
+          )
+        }
+      }
       if cursor.contents < 0 ||
         "=([{,:;!&|?+-*%^~<>"->String.includes(source->String.charAt(cursor.contents)) {
+        true
+      } else if source->String.charAt(cursor.contents) === ")" && followsControlCondition(cursor.contents) {
         true
       } else if isNameContinue(source->String.charAt(cursor.contents)) {
         let wordEnd = cursor.contents + 1
@@ -365,7 +393,10 @@ module GeneratedName = {
           }
         }
       } else {
-        let lineComment = character === "#" ||
+        let lineComment = (character === "#" &&
+          source->String.charAt(index.contents + 1) !== ">" &&
+          source->String.charAt(index.contents + 1) !== "-" &&
+          source->String.charAt(index.contents + 1) !== "#") ||
           (character === "/" && source->String.charAt(index.contents + 1) === "/") ||
           (character === "-" && source->String.charAt(index.contents + 1) === "-")
         let blockComment = character === "/" && source->String.charAt(index.contents + 1) === "*"

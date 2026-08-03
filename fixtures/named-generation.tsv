@@ -34,6 +34,8 @@ JavaScript single quote escape	nameDirective						const value = 'it\\'s // @name
 JavaScript regex literal	nameDirective						const value = /# @name fake/;\n// @name realRegex	name	realRegex
 JavaScript regex character class	nameDirective						const value = /[\\/#] @name fake/;\n// @name realRegexClass	name	realRegexClass
 JavaScript regex after return	nameDirective						function get() { return /# @name fake/ }\n// @name realReturnRegex	name	realReturnRegex
+JavaScript regex after condition	nameDirective						if (ready) /# @name fake/.test(value); // @name realConditionalRegex	name	realConditionalRegex
+PostgreSQL hash operator	nameDirective						SELECT doc #>> '{path}', '@name fake'; -- @name realHashOperator	name	realHashOperator
 missing name directive	nameDirective						select 1	error	no valid @name
 multiple name directives	nameDirective						# @name One\n-- @name Two\nselect 1	error	multiple @name
 query regex with numbered capture	regex	^[ \t]*(?:query|mutation|subscription)[ \t\r\n]+([_A-Za-z][_0-9A-Za-z]*)	m	numbered	1	exactlyOne	query RegexUser { viewer { id } }	name	RegexUser

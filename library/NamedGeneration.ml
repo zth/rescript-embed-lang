@@ -396,10 +396,40 @@ let extract_name_directive source =
       else if is_whitespace source.[offset] then previous_significant (offset - 1)
       else Some source.[offset]
     in
+    let follows_control_condition close_paren =
+      let rec find_open offset depth =
+        if offset < 0 then None
+        else
+          match source.[offset] with
+          | ')' -> find_open (offset - 1) (depth + 1)
+          | '(' when depth = 1 -> Some offset
+          | '(' -> find_open (offset - 1) (depth - 1)
+          | _ -> find_open (offset - 1) depth
+      in
+      match find_open (close_paren - 1) 1 with
+      | None -> false
+      | Some open_paren ->
+          let rec previous_non_space offset =
+            if offset >= 0 && is_whitespace source.[offset] then previous_non_space (offset - 1)
+            else offset
+          in
+          let end_ = previous_non_space (open_paren - 1) + 1 in
+          let rec word_start offset =
+            if offset >= 0 && is_name_continue source.[offset] then word_start (offset - 1)
+            else offset + 1
+          in
+          let start = word_start (end_ - 1) in
+          List.mem (String.sub source start (end_ - start)) [ "if"; "while"; "for"; "with" ]
+    in
     match previous_significant (index - 1) with
     | None -> true
     | Some ('=' | '(' | '[' | '{' | ',' | ':' | ';' | '!' | '&' | '|' | '?' | '+' | '-'
       | '*' | '%' | '^' | '~' | '<' | '>') -> true
+    | Some ')' ->
+        let rec previous_non_space offset =
+          if is_whitespace source.[offset] then previous_non_space (offset - 1) else offset
+        in
+        follows_control_condition (previous_non_space (index - 1))
     | Some character when is_name_continue character ->
         let rec word_start offset =
           if offset >= 0 && is_name_continue source.[offset] then word_start (offset - 1)
@@ -487,7 +517,11 @@ let extract_name_directive source =
                && (index = 1 || not (is_sql_identifier_continue source.[index - 2])))
           in
           loop (skip_quoted (index + 1) quote ~backslash_escapes false) names
-      | '#' ->
+      | '#'
+        when index + 1 >= length
+             || (source.[index + 1] <> '>'
+                && source.[index + 1] <> '-'
+                && source.[index + 1] <> '#') ->
           let end_ = line_end (index + 1) in
           loop end_ (add_comment (index + 1) end_ names)
       | '/' when starts_with_at source index "//" ->
