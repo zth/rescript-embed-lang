@@ -239,7 +239,20 @@ module GeneratedName = {
     let names: array<string> = []
     let length = source->String.length
     let index = ref(0)
-    let isSqlIdentifierContinue = character => isNameContinue(character) || character === "$"
+    let isSqlIdentifierContinue = character =>
+      isNameContinue(character) || character === "$" || character >= "\u0080"
+    let hasSingleQuoteBeforeLineEnd = start => {
+      let cursor = ref(start)
+      let found = ref(false)
+      while cursor.contents < length && source->String.charAt(cursor.contents) !== "\n" && !found.contents {
+        if source->String.charAt(cursor.contents) === "'" {
+          found := true
+        } else {
+          cursor := cursor.contents + 1
+        }
+      }
+      found.contents
+    }
     while index.contents < length {
       let character = source->String.charAt(index.contents)
       if character === "$" &&
@@ -279,7 +292,11 @@ module GeneratedName = {
           index := index.contents + 1
           if escaped.contents {
             escaped := false
-          } else if escapesWithBackslash && current === "\\" {
+          } else if current === "\\" &&
+            (escapesWithBackslash ||
+              (quote === "'" &&
+                source->String.charAt(index.contents) === "'" &&
+                hasSingleQuoteBeforeLineEnd(index.contents + 1))) {
             escaped := true
           } else if current === quote {
             if quote === "'" && source->String.charAt(index.contents) === "'" {

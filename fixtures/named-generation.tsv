@@ -23,8 +23,10 @@ name directive ignores strings	nameDirective						const fake = \"// @name fake\"
 name directive ignores dollar quote	nameDirective						SELECT $$-- @name fake$$;\n-- @name realDollar\nSELECT 1	name	realDollar
 name directive ignores tagged dollar quote	nameDirective						SELECT $body$# @name fake$body$;\n-- @name realTagged\nSELECT 1	name	realTagged
 dollar quote requires boundary	nameDirective						SELECT foo$tag$ FROM items;\n-- @name getItems	name	getItems
+unicode dollar quote boundary	nameDirective						SELECT é$tag$ FROM items;\n-- @name getUnicodeItems	name	getUnicodeItems
 ordinary SQL string final backslash	nameDirective						SELECT '\\'; -- @name getThing	name	getThing
 escape SQL string backslash quote	nameDirective						SELECT E'it\\'s -- @name fake';\n-- @name realEscape	name	realEscape
+JavaScript single quote escape	nameDirective						const value = 'it\\'s // @name fake'; // @name realJs	name	realJs
 missing name directive	nameDirective						select 1	error	no valid @name
 multiple name directives	nameDirective						# @name One\n-- @name Two\nselect 1	error	multiple @name
 query regex with numbered capture	regex	^[ \t]*(?:query|mutation|subscription)[ \t\r\n]+([_A-Za-z][_0-9A-Za-z]*)	m	numbered	1	exactlyOne	query RegexUser { viewer { id } }	name	RegexUser

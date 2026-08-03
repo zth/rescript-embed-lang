@@ -355,7 +355,7 @@ let names_in_comment comment =
 let extract_name_directive source =
   let length = String.length source in
   let is_sql_identifier_continue character =
-    is_name_continue character || Char.equal character '$'
+    is_name_continue character || Char.equal character '$' || Char.code character >= 128
   in
   let dollar_quote_delimiter index =
     let rec tag_end offset =
@@ -376,10 +376,22 @@ let extract_name_directive source =
     else if starts_with_at source index delimiter then index + String.length delimiter
     else skip_dollar_quoted (index + 1) delimiter
   in
+  let rec has_single_quote_before_line_end index =
+    index < length
+    && not (Char.equal source.[index] '\n')
+    && (Char.equal source.[index] '\'' || has_single_quote_before_line_end (index + 1))
+  in
   let rec skip_quoted index quote ~backslash_escapes escaped =
     if index >= length then index
     else if escaped then skip_quoted (index + 1) quote ~backslash_escapes false
-    else if backslash_escapes && source.[index] = '\\' then
+    else if
+      Char.equal source.[index] '\\'
+      && (backslash_escapes
+         || (Char.equal quote '\''
+            && index + 1 < length
+            && Char.equal source.[index + 1] '\''
+            && has_single_quote_before_line_end (index + 2)))
+    then
       skip_quoted (index + 1) quote ~backslash_escapes true
     else if source.[index] = quote then
       if Char.equal quote '\'' && index + 1 < length && Char.equal source.[index + 1] '\''
