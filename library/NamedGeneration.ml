@@ -5,6 +5,7 @@ type generated_name =
   | Sequential
   | Graphql_definition
   | Name_directive
+  | Name_directive_nested_block_comments
   | Regex of {
       pattern : string;
       flags : string;
@@ -37,6 +38,12 @@ let int_member name json =
   | `Int value -> value
   | _ -> failwith (Printf.sprintf "missing or invalid integer field %S" name)
 
+let bool_member_default name ~default json =
+  match member name json with
+  | `Bool value -> value
+  | `Null -> default
+  | _ -> failwith (Printf.sprintf "invalid boolean field %S" name)
+
 let parse_capture json =
   match string_member "kind" json with
   | "numbered" -> Numbered (int_member "index" json)
@@ -52,7 +59,10 @@ let parse_generated_name json =
   match string_member "kind" json with
   | "sequential" -> Sequential
   | "graphqlDefinition" -> Graphql_definition
-  | "nameDirective" -> Name_directive
+  | "nameDirective" ->
+      if bool_member_default "nestedBlockComments" ~default:false json then
+        Name_directive_nested_block_comments
+      else Name_directive
   | "regex" ->
       Regex
         {
@@ -353,7 +363,7 @@ let names_in_comment comment =
   in
   loop 0 []
 
-let extract_name_directive source =
+let extract_name_directive ~nested_block_comments source =
   let length = String.length source in
   let is_sql_identifier_continue character =
     is_name_continue character || Char.equal character '$' || Char.code character >= 128
@@ -503,7 +513,8 @@ let extract_name_directive source =
   in
   let rec block_end index depth =
     if index >= length then (index, depth)
-    else if starts_with_at source index "/*" then block_end (index + 2) (depth + 1)
+    else if nested_block_comments && starts_with_at source index "/*" then
+      block_end (index + 2) (depth + 1)
     else if starts_with_at source index "*/" then
       if depth = 1 then (index, 0) else block_end (index + 2) (depth - 1)
     else block_end (index + 1) depth
@@ -581,7 +592,9 @@ let extract_name_directive source =
 let extract_name ~extension ~source = function
   | Sequential -> None
   | Graphql_definition -> Some (extract_graphql_definition source)
-  | Name_directive -> Some (extract_name_directive source)
+  | Name_directive -> Some (extract_name_directive ~nested_block_comments:false source)
+  | Name_directive_nested_block_comments ->
+      Some (extract_name_directive ~nested_block_comments:true source)
   | Regex { pattern; flags; capture; cardinality } ->
       let regexp =
         compile_regexp pattern

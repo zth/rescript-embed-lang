@@ -61,6 +61,7 @@ type generatedName =
   | Sequential
   | GraphqlDefinition
   | NameDirective
+  | NameDirectiveNestedBlockComments
   | Regex({pattern: string, flags: string, capture: capture, cardinality: cardinality})
 
 module GeneratedName: {

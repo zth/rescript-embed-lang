@@ -115,6 +115,7 @@ let config fixture =
   match fixture.strategy with
   | "graphqlDefinition" -> Named.Graphql_definition
   | "nameDirective" -> Named.Name_directive
+  | "nameDirectiveNested" -> Named.Name_directive_nested_block_comments
   | "regex" ->
       Named.Regex
         {
@@ -192,7 +193,7 @@ let test_config_loading () =
     (fun () ->
       let channel = open_out_bin path in
       output_string channel
-        {|{"version":1,"extensions":{"graphql":{"generatedName":{"kind":"graphqlDefinition"}},"comments":{"generatedName":{"kind":"nameDirective"}}}}|};
+        {|{"version":1,"extensions":{"graphql":{"generatedName":{"kind":"graphqlDefinition"}},"comments":{"generatedName":{"kind":"nameDirective"}},"nested":{"generatedName":{"kind":"nameDirective","nestedBlockComments":true}}}}|};
       close_out channel;
       Named.set_config_path path;
       (match Named.for_extension ~source_file:"src/Test.res" "graphql" with
@@ -201,6 +202,9 @@ let test_config_loading () =
       (match Named.for_extension ~source_file:"src/Test.res" "comments" with
       | Named.Name_directive -> ()
       | _ -> fail "unexpected name-directive config strategy");
+      (match Named.for_extension ~source_file:"src/Test.res" "nested" with
+      | Named.Name_directive_nested_block_comments -> ()
+      | _ -> fail "unexpected nested name-directive config strategy");
       match Named.for_extension ~source_file:"src/Test.res" "unconfigured" with
       | Named.Sequential -> ()
       | _ -> fail "unconfigured extensions should remain sequential")

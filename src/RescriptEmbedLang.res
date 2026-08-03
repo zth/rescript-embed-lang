@@ -38,6 +38,10 @@ module Vm = {
   external execRegex: (string, context, options) => option<RegExp.Result.t> = "runInNewContext"
 }
 
+module JsString = {
+  @send external charCodeAt: (string, int) => int = "charCodeAt"
+}
+
 @live type extensionPattern = Generic(string) | FirstClass(string)
 @live type cardinality = ExactlyOne | First
 @live type capture = Numbered(int) | Named(string)
@@ -46,6 +50,7 @@ type generatedName =
   | Sequential
   | GraphqlDefinition
   | NameDirective
+  | NameDirectiveNestedBlockComments
   | Regex({pattern: string, flags: string, capture: capture, cardinality: cardinality})
 
 module GeneratedName = {
@@ -248,7 +253,7 @@ module GeneratedName = {
     names
   }
 
-  let extractNameDirective = source => {
+  let extractNameDirective = (~nestedBlockComments=false, source) => {
     let names: array<string> = []
     let length = source->String.length
     let index = ref(0)
@@ -521,7 +526,10 @@ module GeneratedName = {
             let end_ = ref(start)
             let depth = ref(1)
             while end_.contents < length && depth.contents > 0 {
-              if source->String.slice(~start=end_.contents, ~end=end_.contents + 2) === "/*" {
+              if (
+                nestedBlockComments &&
+                source->String.slice(~start=end_.contents, ~end=end_.contents + 2) === "/*"
+              ) {
                 depth := depth.contents + 1
                 end_ := end_.contents + 2
               } else if (
@@ -588,6 +596,7 @@ module GeneratedName = {
       1
     }
     let stopped = ref(false)
+    let unicodeMode = flags->String.includes("u") || flags->String.includes("v")
 
     while !stopped.contents && matches->Array.length < maximumMatches {
       let matched = try {
@@ -607,7 +616,23 @@ module GeneratedName = {
         if !(regexp->RegExp.global) && !(regexp->RegExp.sticky) {
           stopped := true
         } else if result->RegExp.Result.fullMatch === "" {
-          regexp->RegExp.setLastIndex(regexp->RegExp.lastIndex + 1)
+          let lastIndex = regexp->RegExp.lastIndex
+          let first = source->JsString.charCodeAt(lastIndex)
+          let advancesByCodePoint =
+            unicodeMode &&
+            first >= 0xD800 &&
+            first <= 0xDBFF &&
+            lastIndex + 1 < source->String.length && {
+              let second = source->JsString.charCodeAt(lastIndex + 1)
+              second >= 0xDC00 && second <= 0xDFFF
+            }
+          regexp->RegExp.setLastIndex(
+            lastIndex + if advancesByCodePoint {
+              2
+            } else {
+              1
+            },
+          )
         }
       }
     }
@@ -642,6 +667,8 @@ module GeneratedName = {
     | Sequential => None
     | GraphqlDefinition => Some(extractGraphqlDefinition(source))
     | NameDirective => Some(extractNameDirective(source))
+    | NameDirectiveNestedBlockComments =>
+      Some(extractNameDirective(~nestedBlockComments=true, source))
     | Regex({pattern, flags, capture, cardinality}) =>
       try {
         Some(extractRegex(~pattern, ~flags, ~capture, ~cardinality, ~source).name)
@@ -662,6 +689,11 @@ module GeneratedName = {
       Dict.fromArray([("kind", JSON.Encode.string("graphqlDefinition"))])->JSON.Encode.object
     | NameDirective =>
       Dict.fromArray([("kind", JSON.Encode.string("nameDirective"))])->JSON.Encode.object
+    | NameDirectiveNestedBlockComments =>
+      Dict.fromArray([
+        ("kind", JSON.Encode.string("nameDirective")),
+        ("nestedBlockComments", JSON.Encode.bool(true)),
+      ])->JSON.Encode.object
     | Regex({pattern, flags, capture, cardinality}) =>
       let capture = switch capture {
       | Numbered(index) =>
@@ -876,7 +908,7 @@ let proposeForSource = async (t: t<_>, path, ~config, ~outputDir, ~debug) => {
       col: 0,
     }
     [generated, ...modulesAndExtras->Array.flatMap(((_, _, extras)) => extras)]
-  | GraphqlDefinition | NameDirective | Regex(_) =>
+  | GraphqlDefinition | NameDirective | NameDirectiveNestedBlockComments | Regex(_) =>
     let proposed = await Promise.all(
       embeds->Array.map(async embed => {
         let location = {

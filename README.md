@@ -208,6 +208,8 @@ let embed = RescriptEmbedLang.make(
 
 It recognizes exactly one `@name <identifier>` inside `#`, `//`, `--`, or `/* ... */` comments. String contents are ignored.
 
+`NameDirective` uses JavaScript-style block comments, where the first `*/` closes the comment. For languages with nested block comments, such as PostgreSQL, use `NameDirectiveNestedBlockComments`; it emits the same config with `nestedBlockComments: true`.
+
 `Regex` remains available as an escape hatch for language-specific naming. It supports numbered or named captures and `ExactlyOne` or `First` cardinality, using ECMAScript regular-expression semantics in both runtimes.
 
 Generation must run before ReScript compilation. There are no source hashes in the generated API or PPX target; extracted names provide stable generated filenames and module references.

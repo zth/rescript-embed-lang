@@ -83,9 +83,12 @@ module NamedGenerationFixture = {
         let getField = index =>
           fields[index]
           ->Option.getOrThrow(~message=`missing field ${index->Int.toString}`)
-          ->value => JSON.parseOrThrow(`"${value}"`)
-          ->JSON.Decode.string
-          ->Option.getOrThrow(~message=`invalid escaped field ${index->Int.toString}`)
+          ->(
+            value =>
+              JSON.parseOrThrow(`"${value}"`)
+              ->JSON.Decode.string
+              ->Option.getOrThrow(~message=`invalid escaped field ${index->Int.toString}`)
+          )
         Some({
           label: getField(0),
           strategy: getField(1),
@@ -112,6 +115,7 @@ describe("named generation shared corpus", () => {
         let config = switch case.strategy {
         | "graphqlDefinition" => RescriptEmbedLang.GraphqlDefinition
         | "nameDirective" => RescriptEmbedLang.NameDirective
+        | "nameDirectiveNested" => RescriptEmbedLang.NameDirectiveNestedBlockComments
         | "regex" =>
           let capture = switch case.captureKind {
           | "numbered" =>
@@ -193,10 +197,7 @@ describe("named generator integration", () => {
     Fs.mkdirSync(output)
     let source = Path.join([src, "Operations.res"])
     let run = () =>
-      RescriptEmbedLang.runCli(
-        embed,
-        ~args=["generate", "--src", src, "--output", output],
-      )
+      RescriptEmbedLang.runCli(embed, ~args=["generate", "--src", src, "--output", output])
 
     try {
       write(source, "module Alpha = %generated.fixture(\x60query Alpha { viewer { id } }\x60)\n")
