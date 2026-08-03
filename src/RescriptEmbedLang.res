@@ -239,9 +239,11 @@ module GeneratedName = {
     let names: array<string> = []
     let length = source->String.length
     let index = ref(0)
+    let isSqlIdentifierContinue = character => isNameContinue(character) || character === "$"
     while index.contents < length {
       let character = source->String.charAt(index.contents)
-      if character === "$" {
+      if character === "$" &&
+        (index.contents === 0 || !isSqlIdentifierContinue(source->String.charAt(index.contents - 1))) {
         let delimiterEnd = ref(index.contents + 1)
         while delimiterEnd.contents < length && isNameContinue(source->String.charAt(delimiterEnd.contents)) {
           delimiterEnd := delimiterEnd.contents + 1
@@ -265,6 +267,10 @@ module GeneratedName = {
         }
       } else if character === "\"" || character === "'" || character === "`" {
         let quote = character
+        let escapesWithBackslash = quote !== "'" ||
+          (index.contents > 0 &&
+            (source->String.charAt(index.contents - 1) === "E" || source->String.charAt(index.contents - 1) === "e") &&
+            (index.contents === 1 || !isSqlIdentifierContinue(source->String.charAt(index.contents - 2))))
         index := index.contents + 1
         let escaped = ref(false)
         let closed = ref(false)
@@ -273,10 +279,14 @@ module GeneratedName = {
           index := index.contents + 1
           if escaped.contents {
             escaped := false
-          } else if current === "\\" {
+          } else if escapesWithBackslash && current === "\\" {
             escaped := true
           } else if current === quote {
-            closed := true
+            if quote === "'" && source->String.charAt(index.contents) === "'" {
+              index := index.contents + 1
+            } else {
+              closed := true
+            }
           }
         }
       } else {

@@ -354,6 +354,9 @@ let names_in_comment comment =
 
 let extract_name_directive source =
   let length = String.length source in
+  let is_sql_identifier_continue character =
+    is_name_continue character || Char.equal character '$'
+  in
   let dollar_quote_delimiter index =
     let rec tag_end offset =
       if offset < length && is_name_continue source.[offset] then tag_end (offset + 1)
@@ -361,7 +364,10 @@ let extract_name_directive source =
     in
     let end_ = tag_end (index + 1) in
     let has_valid_tag = end_ = index + 1 || is_name_start source.[index + 1] in
-    if has_valid_tag && end_ < length && source.[end_] = '$' then
+    let has_token_boundary =
+      index = 0 || not (is_sql_identifier_continue source.[index - 1])
+    in
+    if has_token_boundary && has_valid_tag && end_ < length && source.[end_] = '$' then
       Some (String.sub source index (end_ - index + 1), end_ + 1)
     else None
   in
@@ -370,12 +376,16 @@ let extract_name_directive source =
     else if starts_with_at source index delimiter then index + String.length delimiter
     else skip_dollar_quoted (index + 1) delimiter
   in
-  let rec skip_quoted index quote escaped =
+  let rec skip_quoted index quote ~backslash_escapes escaped =
     if index >= length then index
-    else if escaped then skip_quoted (index + 1) quote false
-    else if source.[index] = '\\' then skip_quoted (index + 1) quote true
-    else if source.[index] = quote then index + 1
-    else skip_quoted (index + 1) quote false
+    else if escaped then skip_quoted (index + 1) quote ~backslash_escapes false
+    else if backslash_escapes && source.[index] = '\\' then
+      skip_quoted (index + 1) quote ~backslash_escapes true
+    else if source.[index] = quote then
+      if Char.equal quote '\'' && index + 1 < length && Char.equal source.[index + 1] '\''
+      then skip_quoted (index + 2) quote ~backslash_escapes false
+      else index + 1
+    else skip_quoted (index + 1) quote ~backslash_escapes false
   in
   let rec line_end index =
     if index < length && source.[index] <> '\n' then line_end (index + 1) else index
@@ -396,7 +406,14 @@ let extract_name_directive source =
           | Some (delimiter, content_start) ->
               loop (skip_dollar_quoted content_start delimiter) names
           | None -> loop (index + 1) names)
-      | ('"' | '\'' | '`') as quote -> loop (skip_quoted (index + 1) quote false) names
+      | ('"' | '\'' | '`') as quote ->
+          let backslash_escapes =
+            not (Char.equal quote '\'')
+            || (index > 0
+               && (Char.equal source.[index - 1] 'E' || Char.equal source.[index - 1] 'e')
+               && (index = 1 || not (is_sql_identifier_continue source.[index - 2])))
+          in
+          loop (skip_quoted (index + 1) quote ~backslash_escapes false) names
       | '#' ->
           let end_ = line_end (index + 1) in
           loop end_ (add_comment (index + 1) end_ names)
