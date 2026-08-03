@@ -5,6 +5,7 @@ nested input defaults	graphqlDefinition						query NestedDefault($filters: [Filt
 operation directive object argument	graphqlDefinition						query WithDirective @cache(config: {ttl: 1}) { viewer { id } }	name	WithDirective
 mutation with CRLF and tabs	graphqlDefinition						\r\n\tmutation\r\nUpdateUser { updateUser { id } }	name	UpdateUser
 subscription after leading comments	graphqlDefinition						# comment\n# another\nsubscription UserChanged { userChanged { id } }	name	UserChanged
+query after CR-only comment	graphqlDefinition						# description\rquery AfterCarriageReturn { viewer { id } }	name	AfterCarriageReturn
 fragment before operation	graphqlDefinition						fragment UserFields on User { id }\nquery UserWithFragment { user { ...UserFields } }	name	UserWithFragment
 fragment after operation	graphqlDefinition						query BeforeFragment { user { ...Fields } }\nfragment Fields on User { id }	name	BeforeFragment
 lone fragment	graphqlDefinition						fragment UserFields on User { id name }	name	UserFields
@@ -17,6 +18,7 @@ keywords in comments and strings	graphqlDefinition						# query Fake { nope }\nq
 keywords in block string	graphqlDefinition						query BlockString { field(arg: \"\"\"mutation Fake { nope }\"\"\") }	name	BlockString
 hash name directive	nameDirective						# @name edgeThing\nselect 1	name	edgeThing
 slash name directive	nameDirective						// @name jsThing\nconst value = 1	name	jsThing
+CR-only name directive	nameDirective						// @name carriageName\rconst value = 1	name	carriageName
 dash name directive	nameDirective						-- @name sqlThing\nselect 1	name	sqlThing
 block name directive	nameDirective						/* docs\n * @name blockThing\n */\nselect 1	name	blockThing
 name directive ignores strings	nameDirective						const fake = \"// @name fake\";\n// @name realThing\nconst value = 1	name	realThing
@@ -29,6 +31,9 @@ ordinary SQL string final backslash	nameDirective						SELECT '\\'; -- @name get
 multiple ordinary SQL strings	nameDirective						SELECT '\\', 'x'; -- @name getMultiple	name	getMultiple
 escape SQL string backslash quote	nameDirective						SELECT E'it\\'s -- @name fake';\n-- @name realEscape	name	realEscape
 JavaScript single quote escape	nameDirective						const value = 'it\\'s // @name fake'; // @name realJs	name	realJs
+JavaScript regex literal	nameDirective						const value = /# @name fake/;\n// @name realRegex	name	realRegex
+JavaScript regex character class	nameDirective						const value = /[\\/#] @name fake/;\n// @name realRegexClass	name	realRegexClass
+JavaScript regex after return	nameDirective						function get() { return /# @name fake/ }\n// @name realReturnRegex	name	realReturnRegex
 missing name directive	nameDirective						select 1	error	no valid @name
 multiple name directives	nameDirective						# @name One\n-- @name Two\nselect 1	error	multiple @name
 query regex with numbered capture	regex	^[ \t]*(?:query|mutation|subscription)[ \t\r\n]+([_A-Za-z][_0-9A-Za-z]*)	m	numbered	1	exactlyOne	query RegexUser { viewer { id } }	name	RegexUser

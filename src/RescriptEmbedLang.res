@@ -88,7 +88,9 @@ module GeneratedName = {
       if isWhitespace(character) || character === "," {
         index := index.contents + 1
       } else if character === "#" {
-        while index.contents < length && source->String.charAt(index.contents) !== "\n" {
+        while index.contents < length &&
+          source->String.charAt(index.contents) !== "\n" &&
+          source->String.charAt(index.contents) !== "\r" {
           index := index.contents + 1
         }
       } else if character === "\"" {
@@ -262,9 +264,55 @@ module GeneratedName = {
       }
       found.contents
     }
+    let canStartRegexLiteral = start => {
+      let cursor = ref(start - 1)
+      while cursor.contents >= 0 && isWhitespace(source->String.charAt(cursor.contents)) {
+        cursor := cursor.contents - 1
+      }
+      if cursor.contents < 0 ||
+        "=([{,:;!&|?+-*%^~<>"->String.includes(source->String.charAt(cursor.contents)) {
+        true
+      } else if isNameContinue(source->String.charAt(cursor.contents)) {
+        let wordEnd = cursor.contents + 1
+        while cursor.contents >= 0 && isNameContinue(source->String.charAt(cursor.contents)) {
+          cursor := cursor.contents - 1
+        }
+        let word = source->String.slice(~start=cursor.contents + 1, ~end=wordEnd)
+        ["return", "throw", "case", "delete", "void", "typeof", "yield", "await", "new"]
+        ->Array.includes(word)
+      } else {
+        false
+      }
+    }
     while index.contents < length {
       let character = source->String.charAt(index.contents)
-      if character === "$" &&
+      if character === "/" &&
+        source->String.charAt(index.contents + 1) !== "/" &&
+        source->String.charAt(index.contents + 1) !== "*" &&
+        canStartRegexLiteral(index.contents) {
+        index := index.contents + 1
+        let escaped = ref(false)
+        let inClass = ref(false)
+        let closed = ref(false)
+        while index.contents < length && !closed.contents {
+          let current = source->String.charAt(index.contents)
+          index := index.contents + 1
+          if escaped.contents {
+            escaped := false
+          } else if current === "\\" {
+            escaped := true
+          } else if current === "[" {
+            inClass := true
+          } else if current === "]" {
+            inClass := false
+          } else if current === "/" && !inClass.contents {
+            closed := true
+          }
+        }
+        while index.contents < length && isNameContinue(source->String.charAt(index.contents)) {
+          index := index.contents + 1
+        }
+      } else if character === "$" &&
         (index.contents === 0 || !isSqlIdentifierContinue(source->String.charAt(index.contents - 1))) {
         let delimiterEnd = ref(index.contents + 1)
         while delimiterEnd.contents < length && isDollarTagContinue(source->String.charAt(delimiterEnd.contents)) {
@@ -324,7 +372,9 @@ module GeneratedName = {
         if lineComment {
           let start = index.contents + if character === "#" {1} else {2}
           let end_ = ref(start)
-          while end_.contents < length && source->String.charAt(end_.contents) !== "\n" {
+          while end_.contents < length &&
+            source->String.charAt(end_.contents) !== "\n" &&
+            source->String.charAt(end_.contents) !== "\r" {
             end_ := end_.contents + 1
           }
           namesInComment(source->String.slice(~start, ~end=end_.contents))->Array.forEach(name => names->Array.push(name))

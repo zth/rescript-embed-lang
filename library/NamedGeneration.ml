@@ -216,7 +216,8 @@ type graphql_token =
 let graphql_tokens source =
   let length = String.length source in
   let rec skip_line_comment index =
-    if index < length && source.[index] <> '\n' then skip_line_comment (index + 1)
+    if index < length && source.[index] <> '\n' && source.[index] <> '\r' then
+      skip_line_comment (index + 1)
     else index
   in
   let rec skip_quoted_string index escaped =
@@ -389,6 +390,47 @@ let extract_name_directive source =
     && not (Char.equal source.[index] '\n')
     && (Char.equal source.[index] '\'' || has_single_quote_before_line_end (index + 1))
   in
+  let can_start_regex_literal index =
+    let rec previous_significant offset =
+      if offset < 0 then None
+      else if is_whitespace source.[offset] then previous_significant (offset - 1)
+      else Some source.[offset]
+    in
+    match previous_significant (index - 1) with
+    | None -> true
+    | Some ('=' | '(' | '[' | '{' | ',' | ':' | ';' | '!' | '&' | '|' | '?' | '+' | '-'
+      | '*' | '%' | '^' | '~' | '<' | '>') -> true
+    | Some character when is_name_continue character ->
+        let rec word_start offset =
+          if offset >= 0 && is_name_continue source.[offset] then word_start (offset - 1)
+          else offset + 1
+        in
+        let end_ =
+          let rec last_significant offset =
+            if is_whitespace source.[offset] then last_significant (offset - 1) else offset + 1
+          in
+          last_significant (index - 1)
+        in
+        let start = word_start (end_ - 1) in
+        List.mem (String.sub source start (end_ - start))
+          [ "return"; "throw"; "case"; "delete"; "void"; "typeof"; "yield"; "await"; "new" ]
+    | Some _ -> false
+  in
+  let rec skip_regex_literal index ~escaped ~in_class =
+    if index >= length then index
+    else if escaped then skip_regex_literal (index + 1) ~escaped:false ~in_class
+    else
+      match source.[index] with
+      | '\\' -> skip_regex_literal (index + 1) ~escaped:true ~in_class
+      | '[' -> skip_regex_literal (index + 1) ~escaped:false ~in_class:true
+      | ']' -> skip_regex_literal (index + 1) ~escaped:false ~in_class:false
+      | '/' when not in_class -> index + 1
+      | _ -> skip_regex_literal (index + 1) ~escaped:false ~in_class
+  in
+  let rec skip_regex_flags index =
+    if index < length && is_name_continue source.[index] then skip_regex_flags (index + 1)
+    else index
+  in
   let rec skip_quoted index quote ~backslash_escapes escaped =
     if index >= length then index
     else if escaped then skip_quoted (index + 1) quote ~backslash_escapes false
@@ -409,7 +451,9 @@ let extract_name_directive source =
     else skip_quoted (index + 1) quote ~backslash_escapes false
   in
   let rec line_end index =
-    if index < length && source.[index] <> '\n' then line_end (index + 1) else index
+    if index < length && source.[index] <> '\n' && source.[index] <> '\r' then
+      line_end (index + 1)
+    else index
   in
   let rec block_end index =
     if index >= length || starts_with_at source index "*/" then index
@@ -422,6 +466,14 @@ let extract_name_directive source =
     if index >= length then List.rev names
     else
       match source.[index] with
+      | '/'
+        when not (starts_with_at source index "//")
+             && not (starts_with_at source index "/*")
+             && can_start_regex_literal index ->
+          loop
+            (skip_regex_flags
+               (skip_regex_literal (index + 1) ~escaped:false ~in_class:false))
+            names
       | '$' -> (
           match dollar_quote_delimiter index with
           | Some (delimiter, content_start) ->
