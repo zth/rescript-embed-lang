@@ -16,5 +16,6 @@ hash name directive	nameDirective	# @name pythonThing\nvalue = 1	name	pythonThin
 dash name directive	nameDirective	-- @name sqlThing\nselect 1	name	sqlThing
 block name directive	nameDirective	/* @name blockThing */\nconst value = 1	name	blockThing
 multiline name directive	nameDirective	/* @name\n  multilineThing */	name	multilineThing
+invalid name suffix	nameDirective	// @name bad-name	error	invalid @name value
 missing name directive	nameDirective	select 1	error	no valid @name
 multiple name directives	nameDirective	# @name One\n# @name Two	error	multiple @name

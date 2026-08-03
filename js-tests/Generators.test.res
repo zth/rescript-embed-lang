@@ -201,6 +201,24 @@ describe("regex naming", () => {
   })
 })
 
+describe("generator configuration", () => {
+  test("rejects named generation for first-class PPX extensions", () => {
+    let message = try {
+      RescriptEmbedLang.make(
+        ~extensionPattern=FirstClass("edgeql"),
+        ~generatedName=NameDirective,
+        ~setup=RescriptEmbedLang.defaultSetup,
+        ~generate=async _ => Ok(NoModuleName({content: "let default = ()"})),
+        ~cliHelpText="fixture generator",
+      )->ignore
+      ""
+    } catch {
+    | JsExn(error) => error->JsExn.message->Option.getOr("")
+    }
+    NamedGenerationFixture.ok(message->String.includes("only supports Sequential"))
+  })
+})
+
 module NamedGeneratorIntegration = {
   @live type rmOptions = {recursive: bool, force: bool}
   @module("node:fs") external mkdtempSync: string => string = "mkdtempSync"

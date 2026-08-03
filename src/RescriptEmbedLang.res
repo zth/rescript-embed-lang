@@ -335,6 +335,9 @@ module GeneratedName = {
           while nameEnd.contents < length && isNameContinue(source->String.charAt(nameEnd.contents)) {
             nameEnd := nameEnd.contents + 1
           }
+          if nameEnd.contents < length && !isWhitespace(source->String.charAt(nameEnd.contents)) {
+            panic("invalid @name value; expected [_A-Za-z][_0-9A-Za-z]* followed by whitespace")
+          }
           names->Array.push(source->String.slice(~start=nameStart.contents, ~end=nameEnd.contents))
           index := nameEnd.contents
         } else {
@@ -498,13 +501,23 @@ let make = (
   ~handleOtherCommand=?,
   ~onWatch=?,
 ) => {
-  fileName: FileName.make(extensionPattern),
-  generatedName,
-  setup,
-  generate,
-  cliHelpText,
-  ?handleOtherCommand,
-  ?onWatch,
+  switch (extensionPattern, generatedName) {
+  | (FirstClass(_), Sequential) => ()
+  | (FirstClass(extension), _) =>
+    panic(
+      `FirstClass("${extension}") only supports Sequential generated names because its dedicated PPX owns the generated target shape`,
+    )
+  | (Generic(_), _) => ()
+  }
+  {
+    fileName: FileName.make(extensionPattern),
+    generatedName,
+    setup,
+    generate,
+    cliHelpText,
+    ?handleOtherCommand,
+    ?onWatch,
+  }
 }
 
 let getMatches = (~root) => Glob.glob.sync(["**/*.res"], {cwd: root, absolute: true})

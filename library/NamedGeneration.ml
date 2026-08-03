@@ -340,6 +340,9 @@ let names_in_source source =
       let start = skip_whitespace (index + 5) in
       if start < length && is_name_start source.[start] then
         let end_ = name_end (start + 1) in
+        if end_ < length && not (is_whitespace source.[end_]) then
+          failwith
+            "invalid @name value; expected [_A-Za-z][_0-9A-Za-z]* followed by whitespace";
         loop end_ (String.sub source start (end_ - start) :: names)
       else loop (index + 5) names
     else loop (index + 1) names
