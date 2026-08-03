@@ -33,6 +33,9 @@ jobs:
             ca-certificates \
             git \
             gnupg \
+            file \
+            m4 \
+            musl-tools \
             rsync \
             unzip \
             bubblewrap
@@ -44,15 +47,20 @@ jobs:
       - name: Set up OCaml
         uses: ocaml/setup-ocaml@v3
         with:
-          ocaml-compiler: "5.0"
+          ocaml-compiler: "ocaml-variants.5.0.0+options,ocaml-option-musl,ocaml-option-static"
           dune-cache: true
-          cache-prefix: "v2-ocaml5-bullseye"
+          cache-prefix: "v3-ocaml5-musl-bullseye"
       - name: Install PPX dependencies
         run: opam install . --deps-only
       - name: Build PPX
         run: |
           opam exec -- dune build --profile release-static bin/RescriptEmbedLang.exe
           cp _build/default/bin/RescriptEmbedLang.exe ${{ matrix.artifact }}
+      - name: Verify PPX binary
+        run: |
+          file ${{ matrix.artifact }}
+          file ${{ matrix.artifact }} | grep -q "statically linked"
+          ./${{ matrix.artifact }} --help > /dev/null 2>&1
       - name: Strip binary
         run: |
           chmod +w ${{ matrix.artifact }}

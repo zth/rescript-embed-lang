@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Add Linux ARM64 PPX builds and select the ARM64 binary during npm installation.
+- Add statically linked Linux ARM64 PPX builds and select the ARM64 binary during npm installation.
 
 ## 0.6.0
 
