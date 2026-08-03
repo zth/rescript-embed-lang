@@ -487,7 +487,8 @@ let extract_name_directive ~syntax source =
           last_significant (index - 1)
         in
         let start = word_start (end_ - 1) in
-        List.mem (String.sub source start (end_ - start))
+        previous_significant (start - 1) <> Some '.'
+        && List.mem (String.sub source start (end_ - start))
           [
             "return";
             "throw";

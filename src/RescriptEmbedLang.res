@@ -362,7 +362,10 @@ module GeneratedName = {
           cursor := cursor.contents - 1
         }
         let word = source->String.slice(~start=cursor.contents + 1, ~end=wordEnd)
-        [
+        while cursor.contents >= 0 && isWhitespace(source->String.charAt(cursor.contents)) {
+          cursor := cursor.contents - 1
+        }
+        source->String.charAt(cursor.contents) !== "." && [
           "return",
           "throw",
           "case",
