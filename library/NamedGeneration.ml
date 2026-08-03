@@ -357,13 +357,21 @@ let extract_name_directive source =
   let is_sql_identifier_continue character =
     is_name_continue character || Char.equal character '$' || Char.code character >= 128
   in
+  let is_dollar_tag_start character = is_name_start character || Char.code character >= 128 in
+  let is_dollar_tag_continue character =
+    is_name_continue character || Char.code character >= 128
+  in
+  let is_sql_string_terminator = function
+    | ',' | ';' | ')' | ']' | '}' -> true
+    | _ -> false
+  in
   let dollar_quote_delimiter index =
     let rec tag_end offset =
-      if offset < length && is_name_continue source.[offset] then tag_end (offset + 1)
+      if offset < length && is_dollar_tag_continue source.[offset] then tag_end (offset + 1)
       else offset
     in
     let end_ = tag_end (index + 1) in
-    let has_valid_tag = end_ = index + 1 || is_name_start source.[index + 1] in
+    let has_valid_tag = end_ = index + 1 || is_dollar_tag_start source.[index + 1] in
     let has_token_boundary =
       index = 0 || not (is_sql_identifier_continue source.[index - 1])
     in
@@ -390,6 +398,7 @@ let extract_name_directive source =
          || (Char.equal quote '\''
             && index + 1 < length
             && Char.equal source.[index + 1] '\''
+            && (index + 2 >= length || not (is_sql_string_terminator source.[index + 2]))
             && has_single_quote_before_line_end (index + 2)))
     then
       skip_quoted (index + 1) quote ~backslash_escapes true

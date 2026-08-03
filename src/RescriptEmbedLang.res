@@ -241,6 +241,15 @@ module GeneratedName = {
     let index = ref(0)
     let isSqlIdentifierContinue = character =>
       isNameContinue(character) || character === "$" || character >= "\u0080"
+    let isDollarTagStart = character => isNameStart(character) || character >= "\u0080"
+    let isDollarTagContinue = character => isNameContinue(character) || character >= "\u0080"
+    let isSqlStringTerminator = character =>
+      character === "" ||
+      character === "," ||
+      character === ";" ||
+      character === ")" ||
+      character === "]" ||
+      character === "}"
     let hasSingleQuoteBeforeLineEnd = start => {
       let cursor = ref(start)
       let found = ref(false)
@@ -258,11 +267,11 @@ module GeneratedName = {
       if character === "$" &&
         (index.contents === 0 || !isSqlIdentifierContinue(source->String.charAt(index.contents - 1))) {
         let delimiterEnd = ref(index.contents + 1)
-        while delimiterEnd.contents < length && isNameContinue(source->String.charAt(delimiterEnd.contents)) {
+        while delimiterEnd.contents < length && isDollarTagContinue(source->String.charAt(delimiterEnd.contents)) {
           delimiterEnd := delimiterEnd.contents + 1
         }
         let hasValidTag = delimiterEnd.contents === index.contents + 1 ||
-          isNameStart(source->String.charAt(index.contents + 1))
+          isDollarTagStart(source->String.charAt(index.contents + 1))
         if hasValidTag && source->String.charAt(delimiterEnd.contents) === "$" {
           let delimiter = source->String.slice(~start=index.contents, ~end=delimiterEnd.contents + 1)
           index := delimiterEnd.contents + 1
@@ -296,6 +305,7 @@ module GeneratedName = {
             (escapesWithBackslash ||
               (quote === "'" &&
                 source->String.charAt(index.contents) === "'" &&
+                !isSqlStringTerminator(source->String.charAt(index.contents + 1)) &&
                 hasSingleQuoteBeforeLineEnd(index.contents + 1))) {
             escaped := true
           } else if current === quote {
