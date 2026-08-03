@@ -409,9 +409,15 @@ let extract_name_directive ~syntax source =
           decr cursor
         done;
         if !cursor >= 1 && starts_with_at source (!cursor - 1) "*/" then (
-          let opening = ref (!cursor - 2) in
-          while !opening >= 0 && not (starts_with_at source !opening "/*") do
-            decr opening
+          let scan = ref (!cursor - 2) in
+          let opening = ref (-1) in
+          let previous_comment = ref false in
+          while !scan >= 0 && not !previous_comment do
+            if !scan >= 1 && starts_with_at source (!scan - 1) "*/" then
+              previous_comment := true
+            else (
+              if starts_with_at source !scan "/*" then opening := !scan;
+              decr scan)
           done;
           if !opening >= 0 then cursor := !opening - 1 else searching := false)
         else

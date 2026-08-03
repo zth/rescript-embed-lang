@@ -285,12 +285,21 @@ module GeneratedName = {
             cursor.contents >= 1 &&
             source->String.slice(~start=cursor.contents - 1, ~end=cursor.contents + 1) === "*/"
           ) {
-            let opening = ref(cursor.contents - 2)
-            while (
-              opening.contents >= 0 &&
-              source->String.slice(~start=opening.contents, ~end=opening.contents + 2) !== "/*"
-            ) {
-              opening := opening.contents - 1
+            let scan = ref(cursor.contents - 2)
+            let opening = ref(-1)
+            let previousComment = ref(false)
+            while scan.contents >= 0 && !previousComment.contents {
+              if (
+                scan.contents >= 1 &&
+                source->String.slice(~start=scan.contents - 1, ~end=scan.contents + 1) === "*/"
+              ) {
+                previousComment := true
+              } else {
+                if source->String.slice(~start=scan.contents, ~end=scan.contents + 2) === "/*" {
+                  opening := scan.contents
+                }
+                scan := scan.contents - 1
+              }
             }
             if opening.contents >= 0 {
               cursor := opening.contents - 1
