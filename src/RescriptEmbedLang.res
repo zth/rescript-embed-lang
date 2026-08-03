@@ -59,11 +59,10 @@ module GeneratedName = {
 
   let isNameStart = character =>
     character === "_" ||
-    (character >= "A" && character <= "Z") ||
+    character >= "A" && character <= "Z" ||
     (character >= "a" && character <= "z")
 
-  let isNameContinue = character =>
-    isNameStart(character) || (character >= "0" && character <= "9")
+  let isNameContinue = character => isNameStart(character) || (character >= "0" && character <= "9")
 
   let isWhitespace = character =>
     character === " " || character === "\t" || character === "\r" || character === "\n"
@@ -88,9 +87,11 @@ module GeneratedName = {
       if isWhitespace(character) || character === "," {
         index := index.contents + 1
       } else if character === "#" {
-        while index.contents < length &&
+        while (
+          index.contents < length &&
           source->String.charAt(index.contents) !== "\n" &&
-          source->String.charAt(index.contents) !== "\r" {
+          source->String.charAt(index.contents) !== "\r"
+        ) {
           index := index.contents + 1
         }
       } else if character === "\"" {
@@ -100,7 +101,9 @@ module GeneratedName = {
           while index.contents < length && !closed.contents {
             if source->String.slice(~start=index.contents, ~end=index.contents + 4) === "\\\"\"\"" {
               index := index.contents + 4
-            } else if source->String.slice(~start=index.contents, ~end=index.contents + 3) === "\"\"\"" {
+            } else if (
+              source->String.slice(~start=index.contents, ~end=index.contents + 3) === "\"\"\""
+            ) {
               index := index.contents + 3
               closed := true
             } else {
@@ -162,9 +165,9 @@ module GeneratedName = {
       | Some(LeftParen) => parenDepth := parenDepth.contents + 1
       | Some(RightParen) if parenDepth.contents > 0 => parenDepth := parenDepth.contents - 1
       | Some(LeftBracket) => bracketDepth := bracketDepth.contents + 1
-      | Some(RightBracket) if bracketDepth.contents > 0 =>
-        bracketDepth := bracketDepth.contents - 1
-      | Some(LeftBrace) if depth.contents === 0 && parenDepth.contents === 0 && bracketDepth.contents === 0 =>
+      | Some(RightBracket) if bracketDepth.contents > 0 => bracketDepth := bracketDepth.contents - 1
+      | Some(LeftBrace)
+        if depth.contents === 0 && parenDepth.contents === 0 && bracketDepth.contents === 0 =>
         if !awaitingBody.contents {
           operations->Array.push(None)
         }
@@ -172,7 +175,8 @@ module GeneratedName = {
         depth := 1
       | Some(LeftBrace) if depth.contents > 0 => depth := depth.contents + 1
       | Some(RightBrace) if depth.contents > 0 => depth := depth.contents - 1
-      | Some(Name(("query" | "mutation" | "subscription"))) if depth.contents === 0 && !awaitingBody.contents =>
+      | Some(Name("query" | "mutation" | "subscription"))
+        if depth.contents === 0 && !awaitingBody.contents =>
         operations->Array.push(
           switch tokens[index.contents + 1] {
           | Some(Name(name)) => Some(name)
@@ -202,7 +206,8 @@ module GeneratedName = {
       switch fragments->Array.length {
       | 1 => fragments[0]->Option.getOrThrow
       | 0 => panic("GraphQL document contains no named operation or fragment")
-      | _ => panic("GraphQL document contains multiple fragments and no operation; expected exactly one")
+      | _ =>
+        panic("GraphQL document contains multiple fragments and no operation; expected exactly one")
       }
     }
   }
@@ -212,17 +217,23 @@ module GeneratedName = {
     let length = comment->String.length
     let index = ref(0)
     while index.contents < length {
-      if comment->String.charAt(index.contents) === "@" &&
+      if (
+        comment->String.charAt(index.contents) === "@" &&
         comment->String.slice(~start=index.contents + 1, ~end=index.contents + 5) === "name" &&
         (index.contents === 0 || !isNameContinue(comment->String.charAt(index.contents - 1))) &&
-        (index.contents + 5 >= length || isWhitespace(comment->String.charAt(index.contents + 5))) {
+        (index.contents + 5 >= length || isWhitespace(comment->String.charAt(index.contents + 5)))
+      ) {
         let nameStart = ref(index.contents + 5)
-        while nameStart.contents < length && isWhitespace(comment->String.charAt(nameStart.contents)) {
+        while (
+          nameStart.contents < length && isWhitespace(comment->String.charAt(nameStart.contents))
+        ) {
           nameStart := nameStart.contents + 1
         }
         if nameStart.contents < length && isNameStart(comment->String.charAt(nameStart.contents)) {
           let nameEnd = ref(nameStart.contents + 1)
-          while nameEnd.contents < length && isNameContinue(comment->String.charAt(nameEnd.contents)) {
+          while (
+            nameEnd.contents < length && isNameContinue(comment->String.charAt(nameEnd.contents))
+          ) {
             nameEnd := nameEnd.contents + 1
           }
           names->Array.push(comment->String.slice(~start=nameStart.contents, ~end=nameEnd.contents))
@@ -255,7 +266,11 @@ module GeneratedName = {
     let hasSingleQuoteBeforeLineEnd = start => {
       let cursor = ref(start)
       let found = ref(false)
-      while cursor.contents < length && source->String.charAt(cursor.contents) !== "\n" && !found.contents {
+      while (
+        cursor.contents < length &&
+        source->String.charAt(cursor.contents) !== "\n" &&
+        !found.contents
+      ) {
         if source->String.charAt(cursor.contents) === "'" {
           found := true
         } else {
@@ -287,7 +302,9 @@ module GeneratedName = {
             openParen := openParen.contents - 1
           }
           let wordEnd = openParen.contents + 1
-          while openParen.contents >= 0 && isNameContinue(source->String.charAt(openParen.contents)) {
+          while (
+            openParen.contents >= 0 && isNameContinue(source->String.charAt(openParen.contents))
+          ) {
             openParen := openParen.contents - 1
           }
           ["if", "while", "for", "with"]->Array.includes(
@@ -295,10 +312,23 @@ module GeneratedName = {
           )
         }
       }
-      if cursor.contents < 0 ||
-        "=([{,:;!&|?+-*%^~<>"->String.includes(source->String.charAt(cursor.contents)) {
+      if cursor.contents < 0 {
         true
-      } else if source->String.charAt(cursor.contents) === ")" && followsControlCondition(cursor.contents) {
+      } else if (
+        source->String.charAt(cursor.contents) === "+" ||
+          source->String.charAt(cursor.contents) === "-"
+      ) {
+        let operator = source->String.charAt(cursor.contents)
+        cursor := cursor.contents - 1
+        while cursor.contents >= 0 && isWhitespace(source->String.charAt(cursor.contents)) {
+          cursor := cursor.contents - 1
+        }
+        cursor.contents < 0 || source->String.charAt(cursor.contents) !== operator
+      } else if "=([{,:;!&|?*%^~<>"->String.includes(source->String.charAt(cursor.contents)) {
+        true
+      } else if (
+        source->String.charAt(cursor.contents) === ")" && followsControlCondition(cursor.contents)
+      ) {
         true
       } else if isNameContinue(source->String.charAt(cursor.contents)) {
         let wordEnd = cursor.contents + 1
@@ -306,131 +336,216 @@ module GeneratedName = {
           cursor := cursor.contents - 1
         }
         let word = source->String.slice(~start=cursor.contents + 1, ~end=wordEnd)
-        ["return", "throw", "case", "delete", "void", "typeof", "yield", "await", "new", "else", "do"]
-        ->Array.includes(word)
+        [
+          "return",
+          "throw",
+          "case",
+          "delete",
+          "void",
+          "typeof",
+          "yield",
+          "await",
+          "new",
+          "else",
+          "do",
+        ]->Array.includes(word)
       } else {
         false
       }
     }
+    let templateDepths: array<int> = []
+    let templateCount = ref(0)
     while index.contents < length {
       let character = source->String.charAt(index.contents)
-      if character === "/" &&
-        source->String.charAt(index.contents + 1) !== "/" &&
-        source->String.charAt(index.contents + 1) !== "*" &&
-        canStartRegexLiteral(index.contents) {
+      let templateDepth = if templateCount.contents > 0 {
+        templateDepths[templateCount.contents - 1]
+      } else {
+        None
+      }
+      switch templateDepth {
+      | Some(0) =>
+        if character === "\\" {
+          index := if index.contents + 2 < length {
+              index.contents + 2
+            } else {
+              length
+            }
+        } else if character === "`" {
+          templateCount := templateCount.contents - 1
+          index := index.contents + 1
+        } else if character === "$" && source->String.charAt(index.contents + 1) === "{" {
+          templateDepths[templateCount.contents - 1] = 1
+          index := index.contents + 2
+        } else {
+          index := index.contents + 1
+        }
+      | Some(depth) if character === "{" =>
+        templateDepths[templateCount.contents - 1] = depth + 1
         index := index.contents + 1
-        let escaped = ref(false)
-        let inClass = ref(false)
-        let closed = ref(false)
-        while index.contents < length && !closed.contents {
-          let current = source->String.charAt(index.contents)
+      | Some(depth) if character === "}" =>
+        templateDepths[templateCount.contents - 1] = depth - 1
+        index := index.contents + 1
+      | _ =>
+        if (
+          character === "/" &&
+          source->String.charAt(index.contents + 1) !== "/" &&
+          source->String.charAt(index.contents + 1) !== "*" &&
+          canStartRegexLiteral(index.contents)
+        ) {
           index := index.contents + 1
-          if escaped.contents {
-            escaped := false
-          } else if current === "\\" {
-            escaped := true
-          } else if current === "[" {
-            inClass := true
-          } else if current === "]" {
-            inClass := false
-          } else if current === "/" && !inClass.contents {
-            closed := true
-          }
-        }
-        while index.contents < length && isNameContinue(source->String.charAt(index.contents)) {
-          index := index.contents + 1
-        }
-      } else if character === "$" &&
-        (index.contents === 0 || !isSqlIdentifierContinue(source->String.charAt(index.contents - 1))) {
-        let delimiterEnd = ref(index.contents + 1)
-        while delimiterEnd.contents < length && isDollarTagContinue(source->String.charAt(delimiterEnd.contents)) {
-          delimiterEnd := delimiterEnd.contents + 1
-        }
-        let hasValidTag = delimiterEnd.contents === index.contents + 1 ||
-          isDollarTagStart(source->String.charAt(index.contents + 1))
-        if hasValidTag && source->String.charAt(delimiterEnd.contents) === "$" {
-          let delimiter = source->String.slice(~start=index.contents, ~end=delimiterEnd.contents + 1)
-          index := delimiterEnd.contents + 1
+          let escaped = ref(false)
+          let inClass = ref(false)
           let closed = ref(false)
           while index.contents < length && !closed.contents {
-            if source->String.slice(~start=index.contents, ~end=index.contents + delimiter->String.length) === delimiter {
-              index := index.contents + delimiter->String.length
+            let current = source->String.charAt(index.contents)
+            index := index.contents + 1
+            if escaped.contents {
+              escaped := false
+            } else if current === "\\" {
+              escaped := true
+            } else if current === "[" {
+              inClass := true
+            } else if current === "]" {
+              inClass := false
+            } else if current === "/" && !inClass.contents {
               closed := true
-            } else {
-              index := index.contents + 1
             }
           }
-        } else {
+          while index.contents < length && isNameContinue(source->String.charAt(index.contents)) {
+            index := index.contents + 1
+          }
+        } else if (
+          character === "$" &&
+            (index.contents === 0 ||
+              !isSqlIdentifierContinue(source->String.charAt(index.contents - 1)))
+        ) {
+          let delimiterEnd = ref(index.contents + 1)
+          while (
+            delimiterEnd.contents < length &&
+              isDollarTagContinue(source->String.charAt(delimiterEnd.contents))
+          ) {
+            delimiterEnd := delimiterEnd.contents + 1
+          }
+          let hasValidTag =
+            delimiterEnd.contents === index.contents + 1 ||
+              isDollarTagStart(source->String.charAt(index.contents + 1))
+          if hasValidTag && source->String.charAt(delimiterEnd.contents) === "$" {
+            let delimiter =
+              source->String.slice(~start=index.contents, ~end=delimiterEnd.contents + 1)
+            index := delimiterEnd.contents + 1
+            let closed = ref(false)
+            while index.contents < length && !closed.contents {
+              if (
+                source->String.slice(
+                  ~start=index.contents,
+                  ~end=index.contents + delimiter->String.length,
+                ) === delimiter
+              ) {
+                index := index.contents + delimiter->String.length
+                closed := true
+              } else {
+                index := index.contents + 1
+              }
+            }
+          } else {
+            index := index.contents + 1
+          }
+        } else if character === "`" {
+          templateDepths[templateCount.contents] = 0
+          templateCount := templateCount.contents + 1
           index := index.contents + 1
-        }
-      } else if character === "\"" || character === "'" || character === "`" {
-        let quote = character
-        let escapesWithBackslash = quote !== "'" ||
-          (index.contents > 0 &&
-            (source->String.charAt(index.contents - 1) === "E" || source->String.charAt(index.contents - 1) === "e") &&
-            (index.contents === 1 || !isSqlIdentifierContinue(source->String.charAt(index.contents - 2))))
-        index := index.contents + 1
-        let escaped = ref(false)
-        let closed = ref(false)
-        while index.contents < length && !closed.contents {
-          let current = source->String.charAt(index.contents)
+        } else if character === "\"" || character === "'" {
+          let quote = character
+          let escapesWithBackslash =
+            quote !== "'" ||
+              (index.contents > 0 &&
+              (source->String.charAt(index.contents - 1) === "E" ||
+                source->String.charAt(index.contents - 1) === "e") &&
+              (index.contents === 1 ||
+                !isSqlIdentifierContinue(source->String.charAt(index.contents - 2))))
           index := index.contents + 1
-          if escaped.contents {
-            escaped := false
-          } else if current === "\\" &&
-            (escapesWithBackslash ||
-              (quote === "'" &&
+          let escaped = ref(false)
+          let closed = ref(false)
+          while index.contents < length && !closed.contents {
+            let current = source->String.charAt(index.contents)
+            index := index.contents + 1
+            if escaped.contents {
+              escaped := false
+            } else if (
+              current === "\\" &&
+                (escapesWithBackslash ||
+                (quote === "'" &&
                 source->String.charAt(index.contents) === "'" &&
                 !isSqlStringTerminator(source->String.charAt(index.contents + 1)) &&
-                hasSingleQuoteBeforeLineEnd(index.contents + 1))) {
-            escaped := true
-          } else if current === quote {
-            if quote === "'" && source->String.charAt(index.contents) === "'" {
-              index := index.contents + 1
-            } else {
-              closed := true
+                hasSingleQuoteBeforeLineEnd(index.contents + 1)))
+            ) {
+              escaped := true
+            } else if current === quote {
+              if quote === "'" && source->String.charAt(index.contents) === "'" {
+                index := index.contents + 1
+              } else {
+                closed := true
+              }
             }
           }
-        }
-      } else {
-        let lineComment = (character === "#" &&
-          source->String.charAt(index.contents + 1) !== ">" &&
-          source->String.charAt(index.contents + 1) !== "-" &&
-          source->String.charAt(index.contents + 1) !== "#") ||
-          (character === "/" && source->String.charAt(index.contents + 1) === "/") ||
-          (character === "-" && source->String.charAt(index.contents + 1) === "-")
-        let blockComment = character === "/" && source->String.charAt(index.contents + 1) === "*"
-        if lineComment {
-          let start = index.contents + if character === "#" {1} else {2}
-          let end_ = ref(start)
-          while end_.contents < length &&
-            source->String.charAt(end_.contents) !== "\n" &&
-            source->String.charAt(end_.contents) !== "\r" {
-            end_ := end_.contents + 1
-          }
-          namesInComment(source->String.slice(~start, ~end=end_.contents))->Array.forEach(name => names->Array.push(name))
-          index := end_.contents
-        } else if blockComment {
-          let start = index.contents + 2
-          let end_ = ref(start)
-          let depth = ref(1)
-          while end_.contents < length && depth.contents > 0 {
-            if source->String.slice(~start=end_.contents, ~end=end_.contents + 2) === "/*" {
-              depth := depth.contents + 1
-              end_ := end_.contents + 2
-            } else if source->String.slice(~start=end_.contents, ~end=end_.contents + 2) === "*/" {
-              depth := depth.contents - 1
-              if depth.contents > 0 {
-                end_ := end_.contents + 2
+        } else {
+          let lineComment =
+            (character === "#" &&
+            source->String.charAt(index.contents + 1) !== ">" &&
+            source->String.charAt(index.contents + 1) !== "-" &&
+            source->String.charAt(index.contents + 1) !== "#") ||
+            character === "/" && source->String.charAt(index.contents + 1) === "/" ||
+            (character === "-" && source->String.charAt(index.contents + 1) === "-")
+          let blockComment = character === "/" && source->String.charAt(index.contents + 1) === "*"
+          if lineComment {
+            let start =
+              index.contents + if character === "#" {
+                1
+              } else {
+                2
               }
-            } else {
+            let end_ = ref(start)
+            while (
+              end_.contents < length &&
+              source->String.charAt(end_.contents) !== "\n" &&
+              source->String.charAt(end_.contents) !== "\r"
+            ) {
               end_ := end_.contents + 1
             }
+            namesInComment(source->String.slice(~start, ~end=end_.contents))->Array.forEach(name =>
+              names->Array.push(name)
+            )
+            index := end_.contents
+          } else if blockComment {
+            let start = index.contents + 2
+            let end_ = ref(start)
+            let depth = ref(1)
+            while end_.contents < length && depth.contents > 0 {
+              if source->String.slice(~start=end_.contents, ~end=end_.contents + 2) === "/*" {
+                depth := depth.contents + 1
+                end_ := end_.contents + 2
+              } else if (
+                source->String.slice(~start=end_.contents, ~end=end_.contents + 2) === "*/"
+              ) {
+                depth := depth.contents - 1
+                if depth.contents > 0 {
+                  end_ := end_.contents + 2
+                }
+              } else {
+                end_ := end_.contents + 1
+              }
+            }
+            namesInComment(source->String.slice(~start, ~end=end_.contents))->Array.forEach(name =>
+              names->Array.push(name)
+            )
+            index := if depth.contents === 0 {
+                end_.contents + 2
+              } else {
+                end_.contents
+              }
+          } else {
+            index := index.contents + 1
           }
-          namesInComment(source->String.slice(~start, ~end=end_.contents))->Array.forEach(name => names->Array.push(name))
-          index := if depth.contents === 0 {end_.contents + 2} else {end_.contents}
-        } else {
-          index := index.contents + 1
         }
       }
     }
@@ -567,14 +682,15 @@ module GeneratedName = {
         ("capture", capture),
         (
           "cardinality",
-          JSON.Encode.string(switch cardinality {
-          | ExactlyOne => "exactlyOne"
-          | First => "first"
-          }),
+          JSON.Encode.string(
+            switch cardinality {
+            | ExactlyOne => "exactlyOne"
+            | First => "first"
+            },
+          ),
         ),
       ])->JSON.Encode.object
     }
-
 }
 
 module FileName = {
@@ -938,7 +1054,8 @@ let prepareConfig = (~path, ~extension, ~generatedName) => {
   }
   let extensions = switch root->Dict.get("extensions")->Option.flatMap(JSON.Decode.object) {
   | Some(extensions) => extensions
-  | None => panic(`cannot update embed-language config ${path->quote}: expected "extensions" object`)
+  | None =>
+    panic(`cannot update embed-language config ${path->quote}: expected "extensions" object`)
   }
   extensions->Dict.set(
     extension,

@@ -423,8 +423,12 @@ let extract_name_directive source =
     in
     match previous_significant (index - 1) with
     | None -> true
-    | Some ('=' | '(' | '[' | '{' | ',' | ':' | ';' | '!' | '&' | '|' | '?' | '+' | '-'
-      | '*' | '%' | '^' | '~' | '<' | '>') -> true
+    | Some (('+' | '-') as operator) -> (
+        match previous_significant (index - 2) with
+        | Some previous when Char.equal previous operator -> false
+        | _ -> true)
+    | Some ('=' | '(' | '[' | '{' | ',' | ':' | ';' | '!' | '&' | '|' | '?' | '*'
+      | '%' | '^' | '~' | '<' | '>') -> true
     | Some ')' ->
         let rec previous_non_space offset =
           if is_whitespace source.[offset] then previous_non_space (offset - 1) else offset
@@ -507,51 +511,68 @@ let extract_name_directive source =
   let add_comment start end_ names =
     List.rev_append (names_in_comment (String.sub source start (end_ - start))) names
   in
-  let rec loop index names =
+  let rec loop index names template_depths =
     if index >= length then List.rev names
     else
-      match source.[index] with
-      | '/'
-        when not (starts_with_at source index "//")
-             && not (starts_with_at source index "/*")
-             && can_start_regex_literal index ->
-          loop
-            (skip_regex_flags
-               (skip_regex_literal (index + 1) ~escaped:false ~in_class:false))
-            names
-      | '$' -> (
-          match dollar_quote_delimiter index with
-          | Some (delimiter, content_start) ->
-              loop (skip_dollar_quoted content_start delimiter) names
-          | None -> loop (index + 1) names)
-      | ('"' | '\'' | '`') as quote ->
-          let backslash_escapes =
-            not (Char.equal quote '\'')
-            || (index > 0
-               && (Char.equal source.[index - 1] 'E' || Char.equal source.[index - 1] 'e')
-               && (index = 1 || not (is_sql_identifier_continue source.[index - 2])))
-          in
-          loop (skip_quoted (index + 1) quote ~backslash_escapes false) names
-      | '#'
-        when index + 1 >= length
-             || (source.[index + 1] <> '>'
-                && source.[index + 1] <> '-'
-                && source.[index + 1] <> '#') ->
-          let end_ = line_end (index + 1) in
-          loop end_ (add_comment (index + 1) end_ names)
-      | '/' when starts_with_at source index "//" ->
-          let end_ = line_end (index + 2) in
-          loop end_ (add_comment (index + 2) end_ names)
-      | '-' when starts_with_at source index "--" ->
-          let end_ = line_end (index + 2) in
-          loop end_ (add_comment (index + 2) end_ names)
-      | '/' when starts_with_at source index "/*" ->
-          let end_, depth = block_end (index + 2) 1 in
-          let next = if depth = 0 then end_ + 2 else end_ in
-          loop next (add_comment (index + 2) end_ names)
-      | _ -> loop (index + 1) names
+      match template_depths with
+      | 0 :: rest -> (
+          match source.[index] with
+          | '\\' -> loop (min (index + 2) length) names template_depths
+          | '`' -> loop (index + 1) names rest
+          | '$' when starts_with_at source index "${" ->
+              loop (index + 2) names (1 :: rest)
+          | _ -> loop (index + 1) names template_depths)
+      | depth :: rest when Char.equal source.[index] '{' ->
+          loop (index + 1) names ((depth + 1) :: rest)
+      | depth :: rest when Char.equal source.[index] '}' ->
+          loop (index + 1) names ((depth - 1) :: rest)
+      | _ -> (
+          match source.[index] with
+          | '/'
+            when not (starts_with_at source index "//")
+                 && not (starts_with_at source index "/*")
+                 && can_start_regex_literal index ->
+              loop
+                (skip_regex_flags
+                   (skip_regex_literal (index + 1) ~escaped:false ~in_class:false))
+                names template_depths
+          | '$' -> (
+              match dollar_quote_delimiter index with
+              | Some (delimiter, content_start) ->
+                  loop (skip_dollar_quoted content_start delimiter) names template_depths
+              | None -> loop (index + 1) names template_depths)
+          | '`' -> loop (index + 1) names (0 :: template_depths)
+          | ('"' | '\'') as quote ->
+              let backslash_escapes =
+                not (Char.equal quote '\'')
+                || (index > 0
+                   && (Char.equal source.[index - 1] 'E'
+                      || Char.equal source.[index - 1] 'e')
+                   && (index = 1 || not (is_sql_identifier_continue source.[index - 2])))
+              in
+              loop
+                (skip_quoted (index + 1) quote ~backslash_escapes false)
+                names template_depths
+          | '#'
+            when index + 1 >= length
+                 || (source.[index + 1] <> '>'
+                    && source.[index + 1] <> '-'
+                    && source.[index + 1] <> '#') ->
+              let end_ = line_end (index + 1) in
+              loop end_ (add_comment (index + 1) end_ names) template_depths
+          | '/' when starts_with_at source index "//" ->
+              let end_ = line_end (index + 2) in
+              loop end_ (add_comment (index + 2) end_ names) template_depths
+          | '-' when starts_with_at source index "--" ->
+              let end_ = line_end (index + 2) in
+              loop end_ (add_comment (index + 2) end_ names) template_depths
+          | '/' when starts_with_at source index "/*" ->
+              let end_, depth = block_end (index + 2) 1 in
+              let next = if depth = 0 then end_ + 2 else end_ in
+              loop next (add_comment (index + 2) end_ names) template_depths
+          | _ -> loop (index + 1) names template_depths)
   in
-  match loop 0 [] with
+  match loop 0 [] [] with
   | [ name ] -> name
   | [] -> failwith "no valid @name <identifier> directive was found in a comment"
   | _ ->
