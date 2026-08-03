@@ -116,7 +116,8 @@ let config fixture =
   | "graphqlDefinition" -> Named.Graphql_definition
   | "nameDirective" -> Named.Name_directive
   | "nameDirectivePostgreSQL" -> Named.Name_directive_postgresql
-  | "nameDirectiveHash" -> Named.Name_directive_hash
+  | "nameDirectiveShell" -> Named.Name_directive_shell
+  | "nameDirectivePython" -> Named.Name_directive_python
   | "regex" ->
       Named.Regex
         {
@@ -194,7 +195,7 @@ let test_config_loading () =
     (fun () ->
       let channel = open_out_bin path in
       output_string channel
-        {|{"version":1,"extensions":{"graphql":{"generatedName":{"kind":"graphqlDefinition"}},"comments":{"generatedName":{"kind":"nameDirective","syntax":"javascript"}},"postgres":{"generatedName":{"kind":"nameDirective","syntax":"postgresql"}},"hash":{"generatedName":{"kind":"nameDirective","syntax":"hash"}}}}|};
+        {|{"version":1,"extensions":{"graphql":{"generatedName":{"kind":"graphqlDefinition"}},"comments":{"generatedName":{"kind":"nameDirective","syntax":"javascript"}},"postgres":{"generatedName":{"kind":"nameDirective","syntax":"postgresql"}},"shell":{"generatedName":{"kind":"nameDirective","syntax":"shell"}},"python":{"generatedName":{"kind":"nameDirective","syntax":"python"}}}}|};
       close_out channel;
       Named.set_config_path path;
       (match Named.for_extension ~source_file:"src/Test.res" "graphql" with
@@ -206,9 +207,12 @@ let test_config_loading () =
       (match Named.for_extension ~source_file:"src/Test.res" "postgres" with
       | Named.Name_directive_postgresql -> ()
       | _ -> fail "unexpected PostgreSQL name-directive config strategy");
-      (match Named.for_extension ~source_file:"src/Test.res" "hash" with
-      | Named.Name_directive_hash -> ()
-      | _ -> fail "unexpected hash name-directive config strategy");
+      (match Named.for_extension ~source_file:"src/Test.res" "shell" with
+      | Named.Name_directive_shell -> ()
+      | _ -> fail "unexpected shell name-directive config strategy");
+      (match Named.for_extension ~source_file:"src/Test.res" "python" with
+      | Named.Name_directive_python -> ()
+      | _ -> fail "unexpected Python name-directive config strategy");
       match Named.for_extension ~source_file:"src/Test.res" "unconfigured" with
       | Named.Sequential -> ()
       | _ -> fail "unconfigured extensions should remain sequential")

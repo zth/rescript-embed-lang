@@ -45,14 +45,15 @@ module JsString = {
 @live type extensionPattern = Generic(string) | FirstClass(string)
 @live type cardinality = ExactlyOne | First
 @live type capture = Numbered(int) | Named(string)
-@live type nameDirectiveSyntax = JavaScript | PostgreSQL | Hash
+@live type nameDirectiveSyntax = JavaScript | PostgreSQL | Shell | Python
 @live
 type generatedName =
   | Sequential
   | GraphqlDefinition
   | NameDirective
   | NameDirectivePostgreSQL
-  | NameDirectiveHash
+  | NameDirectiveShell
+  | NameDirectivePython
   | Regex({pattern: string, flags: string, capture: capture, cardinality: cardinality})
 
 module GeneratedName = {
@@ -265,7 +266,9 @@ module GeneratedName = {
     let isDollarTagContinue = character => isNameContinue(character) || character >= "\u0080"
     let isJavaScript = syntax === JavaScript
     let isPostgreSQL = syntax === PostgreSQL
-    let isHash = syntax === Hash
+    let isShell = syntax === Shell
+    let isPython = syntax === Python
+    let isHash = isShell || isPython
     let canStartRegexLiteral = start => {
       let cursor = ref(start - 1)
       while cursor.contents >= 0 && isWhitespace(source->String.charAt(cursor.contents)) {
@@ -299,6 +302,38 @@ module GeneratedName = {
           )
         }
       }
+      let followsControlBlock = closeBrace => {
+        let depth = ref(1)
+        let openBrace = ref(closeBrace - 1)
+        while openBrace.contents >= 0 && depth.contents > 0 {
+          switch source->String.charAt(openBrace.contents) {
+          | "}" => depth := depth.contents + 1
+          | "{" => depth := depth.contents - 1
+          | _ => ()
+          }
+          openBrace := openBrace.contents - 1
+        }
+        if depth.contents !== 0 {
+          false
+        } else {
+          while openBrace.contents >= 0 && isWhitespace(source->String.charAt(openBrace.contents)) {
+            openBrace := openBrace.contents - 1
+          }
+          if source->String.charAt(openBrace.contents) === ")" {
+            followsControlCondition(openBrace.contents)
+          } else {
+            let wordEnd = openBrace.contents + 1
+            while (
+              openBrace.contents >= 0 && isNameContinue(source->String.charAt(openBrace.contents))
+            ) {
+              openBrace := openBrace.contents - 1
+            }
+            ["else", "do", "try", "finally"]->Array.includes(
+              source->String.slice(~start=openBrace.contents + 1, ~end=wordEnd),
+            )
+          }
+        }
+      }
       if cursor.contents < 0 {
         true
       } else if (
@@ -315,6 +350,10 @@ module GeneratedName = {
         true
       } else if (
         source->String.charAt(cursor.contents) === ")" && followsControlCondition(cursor.contents)
+      ) {
+        true
+      } else if (
+        source->String.charAt(cursor.contents) === "}" && followsControlBlock(cursor.contents)
       ) {
         true
       } else if isNameContinue(source->String.charAt(cursor.contents)) {
@@ -351,13 +390,13 @@ module GeneratedName = {
         None
       }
       switch templateDepth {
-      | _ if isHash && character === "$" && source->String.charAt(index.contents + 1) === "{" =>
+      | _ if isShell && character === "$" && source->String.charAt(index.contents + 1) === "{" =>
         shellParameterDepth := shellParameterDepth.contents + 1
         index := index.contents + 2
-      | _ if isHash && shellParameterDepth.contents > 0 && character === "{" =>
+      | _ if isShell && shellParameterDepth.contents > 0 && character === "{" =>
         shellParameterDepth := shellParameterDepth.contents + 1
         index := index.contents + 1
-      | _ if isHash && shellParameterDepth.contents > 0 && character === "}" =>
+      | _ if isShell && shellParameterDepth.contents > 0 && character === "}" =>
         shellParameterDepth := shellParameterDepth.contents - 1
         index := index.contents + 1
       | Some(0) =>
@@ -454,7 +493,7 @@ module GeneratedName = {
           templateCount := templateCount.contents + 1
           index := index.contents + 1
         } else if (
-          isHash &&
+          isPython &&
           (character === "\"" || character === "'") &&
           source->String.slice(~start=index.contents, ~end=index.contents + 3) ===
             character ++ character ++ character
@@ -479,10 +518,12 @@ module GeneratedName = {
               index := index.contents + 1
             }
           }
-        } else if character === "\"" || character === "'" || (isHash && character === "`") {
+        } else if character === "\"" || character === "'" || (isShell && character === "`") {
           let quote = character
           let escapesWithBackslash =
-            !isPostgreSQL ||
+            isJavaScript ||
+            isPython ||
+            isShell && quote !== "'" ||
             (quote === "'" &&
             index.contents > 0 &&
             (source->String.charAt(index.contents - 1) === "E" ||
@@ -684,7 +725,8 @@ module GeneratedName = {
     | GraphqlDefinition => Some(extractGraphqlDefinition(source))
     | NameDirective => Some(extractNameDirective(~syntax=JavaScript, source))
     | NameDirectivePostgreSQL => Some(extractNameDirective(~syntax=PostgreSQL, source))
-    | NameDirectiveHash => Some(extractNameDirective(~syntax=Hash, source))
+    | NameDirectiveShell => Some(extractNameDirective(~syntax=Shell, source))
+    | NameDirectivePython => Some(extractNameDirective(~syntax=Python, source))
     | Regex({pattern, flags, capture, cardinality}) =>
       try {
         Some(extractRegex(~pattern, ~flags, ~capture, ~cardinality, ~source).name)
@@ -713,10 +755,15 @@ module GeneratedName = {
         ("kind", JSON.Encode.string("nameDirective")),
         ("syntax", JSON.Encode.string("postgresql")),
       ])->JSON.Encode.object
-    | NameDirectiveHash =>
+    | NameDirectiveShell =>
       Dict.fromArray([
         ("kind", JSON.Encode.string("nameDirective")),
-        ("syntax", JSON.Encode.string("hash")),
+        ("syntax", JSON.Encode.string("shell")),
+      ])->JSON.Encode.object
+    | NameDirectivePython =>
+      Dict.fromArray([
+        ("kind", JSON.Encode.string("nameDirective")),
+        ("syntax", JSON.Encode.string("python")),
       ])->JSON.Encode.object
     | Regex({pattern, flags, capture, cardinality}) =>
       let capture = switch capture {
@@ -932,7 +979,12 @@ let proposeForSource = async (t: t<_>, path, ~config, ~outputDir, ~debug) => {
       col: 0,
     }
     [generated, ...modulesAndExtras->Array.flatMap(((_, _, extras)) => extras)]
-  | GraphqlDefinition | NameDirective | NameDirectivePostgreSQL | NameDirectiveHash | Regex(_) =>
+  | GraphqlDefinition
+  | NameDirective
+  | NameDirectivePostgreSQL
+  | NameDirectiveShell
+  | NameDirectivePython
+  | Regex(_) =>
     let proposed = await Promise.all(
       embeds->Array.map(async embed => {
         let location = {

@@ -210,7 +210,8 @@ Each strategy recognizes exactly one `@name <identifier>` in real comments while
 
 - `NameDirective` handles JavaScript `//` and non-nested `/* ... */` comments.
 - `NameDirectivePostgreSQL` handles `--`, nested `/* ... */`, quoted identifiers, ordinary and escape strings, and dollar-quoted strings.
-- `NameDirectiveHash` handles `#` comments for shell-, Python-, and MySQL-style inputs.
+- `NameDirectiveShell` handles shell `#` comments, quoting, backticks, and `${...}` parameter operations.
+- `NameDirectivePython` handles Python `#` comments, escaped quotes, and triple-quoted strings.
 
 The selected syntax is serialized into the generated PPX config, so generation and compilation use the same scanner.
 

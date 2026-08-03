@@ -6,7 +6,8 @@ type generated_name =
   | Graphql_definition
   | Name_directive
   | Name_directive_postgresql
-  | Name_directive_hash
+  | Name_directive_shell
+  | Name_directive_python
   | Regex of {
       pattern : string;
       flags : string;
@@ -58,7 +59,8 @@ let parse_generated_name json =
       match member "syntax" json with
       | `Null | `String "javascript" -> Name_directive
       | `String "postgresql" -> Name_directive_postgresql
-      | `String "hash" -> Name_directive_hash
+      | `String "shell" -> Name_directive_shell
+      | `String "python" -> Name_directive_python
       | _ -> failwith "unsupported nameDirective syntax")
   | "regex" ->
       Regex
@@ -364,7 +366,9 @@ let extract_name_directive ~syntax source =
   let length = String.length source in
   let is_javascript = String.equal syntax "javascript" in
   let is_postgresql = String.equal syntax "postgresql" in
-  let is_hash = String.equal syntax "hash" in
+  let is_shell = String.equal syntax "shell" in
+  let is_python = String.equal syntax "python" in
+  let is_hash = is_shell || is_python in
   let is_sql_identifier_continue character =
     is_name_continue character || Char.equal character '$' || Char.code character >= 128
   in
@@ -422,6 +426,37 @@ let extract_name_directive ~syntax source =
           let start = word_start (end_ - 1) in
           List.mem (String.sub source start (end_ - start)) [ "if"; "while"; "for"; "with" ]
     in
+    let follows_control_block close_brace =
+      let rec find_open offset depth =
+        if offset < 0 then None
+        else
+          match source.[offset] with
+          | '}' -> find_open (offset - 1) (depth + 1)
+          | '{' when depth = 1 -> Some offset
+          | '{' -> find_open (offset - 1) (depth - 1)
+          | _ -> find_open (offset - 1) depth
+      in
+      match find_open (close_brace - 1) 1 with
+      | None -> false
+      | Some open_brace ->
+          let rec previous_non_space offset =
+            if offset >= 0 && is_whitespace source.[offset] then previous_non_space (offset - 1)
+            else offset
+          in
+          let previous = previous_non_space (open_brace - 1) in
+          if previous >= 0 && Char.equal source.[previous] ')' then
+            follows_control_condition previous
+          else
+            let rec word_start offset =
+              if offset >= 0 && is_name_continue source.[offset] then word_start (offset - 1)
+              else offset + 1
+            in
+            let start = word_start previous in
+            previous >= start
+            && List.mem
+                 (String.sub source start (previous - start + 1))
+                 [ "else"; "do"; "try"; "finally" ]
+    in
     match previous_significant (index - 1) with
     | None -> true
     | Some (('+' | '-') as operator) -> (
@@ -435,6 +470,11 @@ let extract_name_directive ~syntax source =
           if is_whitespace source.[offset] then previous_non_space (offset - 1) else offset
         in
         follows_control_condition (previous_non_space (index - 1))
+    | Some '}' ->
+        let rec previous_non_space offset =
+          if is_whitespace source.[offset] then previous_non_space (offset - 1) else offset
+        in
+        follows_control_block (previous_non_space (index - 1))
     | Some character when is_name_continue character ->
         let rec word_start offset =
           if offset >= 0 && is_name_continue source.[offset] then word_start (offset - 1)
@@ -519,13 +559,13 @@ let extract_name_directive ~syntax source =
   let shell_parameter_depth = ref 0 in
   let rec loop index names template_depths =
     if index >= length then List.rev names
-    else if is_hash && starts_with_at source index "${" then (
+    else if is_shell && starts_with_at source index "${" then (
       incr shell_parameter_depth;
       loop (index + 2) names template_depths)
-    else if is_hash && !shell_parameter_depth > 0 && Char.equal source.[index] '{' then (
+    else if is_shell && !shell_parameter_depth > 0 && Char.equal source.[index] '{' then (
       incr shell_parameter_depth;
       loop (index + 1) names template_depths)
-    else if is_hash && !shell_parameter_depth > 0 && Char.equal source.[index] '}' then (
+    else if is_shell && !shell_parameter_depth > 0 && Char.equal source.[index] '}' then (
       decr shell_parameter_depth;
       loop (index + 1) names template_depths)
     else
@@ -559,14 +599,14 @@ let extract_name_directive ~syntax source =
               | None -> loop (index + 1) names template_depths)
           | '`' when is_javascript -> loop (index + 1) names (0 :: template_depths)
           | (('"' | '\'') as quote)
-            when is_hash && starts_with_at source index (String.make 3 quote) ->
+            when is_python && starts_with_at source index (String.make 3 quote) ->
               let delimiter = String.make 3 quote in
               loop
                 (skip_triple_quoted (index + 3) delimiter false)
                 names template_depths
-          | (('"' | '\'') as quote) | ('`' as quote) when not (Char.equal quote '`') || is_hash ->
+          | (('"' | '\'') as quote) | ('`' as quote) when not (Char.equal quote '`') || is_shell ->
               let backslash_escapes =
-                not is_postgresql
+                is_javascript || is_python || (is_shell && not (Char.equal quote '\''))
                 || (Char.equal quote '\'' && index > 0
                    && (Char.equal source.[index - 1] 'E'
                       || Char.equal source.[index - 1] 'e')
@@ -601,7 +641,8 @@ let extract_name ~extension ~source = function
   | Graphql_definition -> Some (extract_graphql_definition source)
   | Name_directive -> Some (extract_name_directive ~syntax:"javascript" source)
   | Name_directive_postgresql -> Some (extract_name_directive ~syntax:"postgresql" source)
-  | Name_directive_hash -> Some (extract_name_directive ~syntax:"hash" source)
+  | Name_directive_shell -> Some (extract_name_directive ~syntax:"shell" source)
+  | Name_directive_python -> Some (extract_name_directive ~syntax:"python" source)
   | Regex { pattern; flags; capture; cardinality } ->
       let regexp =
         compile_regexp pattern

@@ -62,7 +62,8 @@ type generatedName =
   | GraphqlDefinition
   | NameDirective
   | NameDirectivePostgreSQL
-  | NameDirectiveHash
+  | NameDirectiveShell
+  | NameDirectivePython
   | Regex({pattern: string, flags: string, capture: capture, cardinality: cardinality})
 
 module GeneratedName: {

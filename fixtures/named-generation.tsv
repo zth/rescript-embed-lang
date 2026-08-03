@@ -16,10 +16,11 @@ anonymous operation with fragment	graphqlDefinition						fragment Fields on User
 multiple operations	graphqlDefinition						query One { one }\nmutation Two { two }	error	multiple operations
 keywords in comments and strings	graphqlDefinition						# query Fake { nope }\nquery Real { field(arg: \"fragment Fake on User\") }	name	Real
 keywords in block string	graphqlDefinition						query BlockString { field(arg: \"\"\"mutation Fake { nope }\"\"\") }	name	BlockString
-hash name directive	nameDirectiveHash						# @name edgeThing\nselect 1	name	edgeThing
-hash comment starts with identifier	nameDirectiveHash						#documentation @name documentedThing	name	documentedThing
-shell parameter trimming	nameDirectiveHash						value=${path#prefix}; echo \"@name fake\"; # @name realShell	name	realShell
-Python triple-quoted string	nameDirectiveHash						text = \"\"\"say \" # @name fake\n\"\"\"\n# @name realPython	name	realPython
+hash name directive	nameDirectivePython						# @name edgeThing\nselect 1	name	edgeThing
+hash comment starts with identifier	nameDirectivePython						#documentation @name documentedThing	name	documentedThing
+shell parameter trimming	nameDirectiveShell						value=${path#prefix}; echo \"@name fake\"; # @name realShell	name	realShell
+shell single quote final backslash	nameDirectiveShell						value='\\'; # @name realShellQuote	name	realShellQuote
+Python triple-quoted string	nameDirectivePython						text = \"\"\"say \" # @name fake\n\"\"\"\n# @name realPython	name	realPython
 slash name directive	nameDirective						// @name jsThing\nconst value = 1	name	jsThing
 CR-only name directive	nameDirective						// @name carriageName\rconst value = 1	name	carriageName
 dash name directive	nameDirectivePostgreSQL						-- @name sqlThing\nselect 1	name	sqlThing
@@ -43,6 +44,7 @@ JavaScript regex character class	nameDirective						const value = /[\\/#] @name 
 JavaScript regex after return	nameDirective						function get() { return /# @name fake/ }\n// @name realReturnRegex	name	realReturnRegex
 JavaScript regex after condition	nameDirective						if (ready) /# @name fake/.test(value); // @name realConditionalRegex	name	realConditionalRegex
 JavaScript regex after else	nameDirective						if (ready) work(); else /# @name fake/.test(value);\n// @name realElseRegex	name	realElseRegex
+JavaScript regex after block	nameDirective						if (ready) {} /[/*] @name fake [*/]/.test(value); // @name realAfterBlock	name	realAfterBlock
 JavaScript postfix division	nameDirective						i++ / 2; // @name realPostfixDivision	name	realPostfixDivision
 JavaScript postfix decrement	nameDirective						value--; const label = \"@name fake\";\n// @name realPostfixDecrement	name	realPostfixDecrement
 JavaScript prefix decrement	nameDirective						--value; const label = \"@name fake\";\n// @name realPrefixDecrement	name	realPrefixDecrement
@@ -52,7 +54,7 @@ JavaScript template raw text ignored	nameDirective						const value = `/* @name 
 JavaScript nested template interpolation	nameDirective						const value = `${`nested ${1 /* @name nestedTemplate */}`}`;	name	nestedTemplate
 PostgreSQL hash operator	nameDirectivePostgreSQL						SELECT doc #>> '{path}', '@name fake'; -- @name realHashOperator	name	realHashOperator
 missing name directive	nameDirective						select 1	error	no valid @name
-multiple name directives	nameDirectiveHash						# @name One\n# @name Two\nselect 1	error	multiple @name
+multiple name directives	nameDirectivePython						# @name One\n# @name Two\nselect 1	error	multiple @name
 query regex with numbered capture	regex	^[ \t]*(?:query|mutation|subscription)[ \t\r\n]+([_A-Za-z][_0-9A-Za-z]*)	m	numbered	1	exactlyOne	query RegexUser { viewer { id } }	name	RegexUser
 zero-width Unicode regex	regex	^(?=😀(?<name>Foo))	u	named	name	exactlyOne	😀Foo	name	Foo
 named capture	regex	^[ \t]*query[ \t\r\n]+(?<operation>[_A-Za-z][_0-9A-Za-z]*)	m	named	operation	first	query NamedCapture { viewer { id } }	name	NamedCapture
