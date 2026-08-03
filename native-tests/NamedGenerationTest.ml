@@ -115,7 +115,8 @@ let config fixture =
   match fixture.strategy with
   | "graphqlDefinition" -> Named.Graphql_definition
   | "nameDirective" -> Named.Name_directive
-  | "nameDirectiveNested" -> Named.Name_directive_nested_block_comments
+  | "nameDirectivePostgreSQL" -> Named.Name_directive_postgresql
+  | "nameDirectiveHash" -> Named.Name_directive_hash
   | "regex" ->
       Named.Regex
         {
@@ -174,7 +175,7 @@ let test_first_class_strategies_skip_quickjs () =
        Named.Graphql_definition);
   ignore
     (Named.extract_name ~extension:"comments" ~source:"-- @name NativeScan\nselect 1"
-       Named.Name_directive);
+       Named.Name_directive_postgresql);
   let after = Named.compiled_regexp_count () in
   if after <> before then
     fail "first-class naming strategies unexpectedly compiled a QuickJS regexp"
@@ -193,7 +194,7 @@ let test_config_loading () =
     (fun () ->
       let channel = open_out_bin path in
       output_string channel
-        {|{"version":1,"extensions":{"graphql":{"generatedName":{"kind":"graphqlDefinition"}},"comments":{"generatedName":{"kind":"nameDirective"}},"nested":{"generatedName":{"kind":"nameDirective","nestedBlockComments":true}}}}|};
+        {|{"version":1,"extensions":{"graphql":{"generatedName":{"kind":"graphqlDefinition"}},"comments":{"generatedName":{"kind":"nameDirective","syntax":"javascript"}},"postgres":{"generatedName":{"kind":"nameDirective","syntax":"postgresql"}},"hash":{"generatedName":{"kind":"nameDirective","syntax":"hash"}}}}|};
       close_out channel;
       Named.set_config_path path;
       (match Named.for_extension ~source_file:"src/Test.res" "graphql" with
@@ -202,9 +203,12 @@ let test_config_loading () =
       (match Named.for_extension ~source_file:"src/Test.res" "comments" with
       | Named.Name_directive -> ()
       | _ -> fail "unexpected name-directive config strategy");
-      (match Named.for_extension ~source_file:"src/Test.res" "nested" with
-      | Named.Name_directive_nested_block_comments -> ()
-      | _ -> fail "unexpected nested name-directive config strategy");
+      (match Named.for_extension ~source_file:"src/Test.res" "postgres" with
+      | Named.Name_directive_postgresql -> ()
+      | _ -> fail "unexpected PostgreSQL name-directive config strategy");
+      (match Named.for_extension ~source_file:"src/Test.res" "hash" with
+      | Named.Name_directive_hash -> ()
+      | _ -> fail "unexpected hash name-directive config strategy");
       match Named.for_extension ~source_file:"src/Test.res" "unconfigured" with
       | Named.Sequential -> ()
       | _ -> fail "unconfigured extensions should remain sequential")

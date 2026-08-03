@@ -194,21 +194,25 @@ await client->run(Ga4Properties.default, variables)
 
 `GraphqlDefinition` uses the one named operation in a GraphQL document, ignoring any accompanying fragments. If there is no operation, a lone named fragment is accepted. Anonymous operations, multiple operations, and multiple fragments without an operation produce a generator and compile-time error.
 
-For languages that conventionally carry a name in a comment, use `NameDirective`:
+For languages that conventionally carry a name in a comment, choose the matching first-class directive strategy. PostgreSQL generators use `NameDirectivePostgreSQL`:
 
 ```rescript
 let embed = RescriptEmbedLang.make(
   ~extensionPattern=Generic("sql"),
-  ~generatedName=NameDirective,
+  ~generatedName=NameDirectivePostgreSQL,
   ~setup=RescriptEmbedLang.defaultSetup,
   ~generate,
   ~cliHelpText,
 )
 ```
 
-It recognizes exactly one `@name <identifier>` inside `#`, `//`, `--`, or `/* ... */` comments. String contents are ignored.
+Each strategy recognizes exactly one `@name <identifier>` in real comments while ignoring strings and other language syntax:
 
-`NameDirective` uses JavaScript-style block comments, where the first `*/` closes the comment. For languages with nested block comments, such as PostgreSQL, use `NameDirectiveNestedBlockComments`; it emits the same config with `nestedBlockComments: true`.
+- `NameDirective` handles JavaScript `//` and non-nested `/* ... */` comments.
+- `NameDirectivePostgreSQL` handles `--`, nested `/* ... */`, quoted identifiers, ordinary and escape strings, and dollar-quoted strings.
+- `NameDirectiveHash` handles `#` comments for shell-, Python-, and MySQL-style inputs.
+
+The selected syntax is serialized into the generated PPX config, so generation and compilation use the same scanner.
 
 `Regex` remains available as an escape hatch for language-specific naming. It supports numbered or named captures and `ExactlyOne` or `First` cardinality, using ECMAScript regular-expression semantics in both runtimes.
 

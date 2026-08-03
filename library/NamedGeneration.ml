@@ -5,7 +5,8 @@ type generated_name =
   | Sequential
   | Graphql_definition
   | Name_directive
-  | Name_directive_nested_block_comments
+  | Name_directive_postgresql
+  | Name_directive_hash
   | Regex of {
       pattern : string;
       flags : string;
@@ -38,12 +39,6 @@ let int_member name json =
   | `Int value -> value
   | _ -> failwith (Printf.sprintf "missing or invalid integer field %S" name)
 
-let bool_member_default name ~default json =
-  match member name json with
-  | `Bool value -> value
-  | `Null -> default
-  | _ -> failwith (Printf.sprintf "invalid boolean field %S" name)
-
 let parse_capture json =
   match string_member "kind" json with
   | "numbered" -> Numbered (int_member "index" json)
@@ -59,10 +54,12 @@ let parse_generated_name json =
   match string_member "kind" json with
   | "sequential" -> Sequential
   | "graphqlDefinition" -> Graphql_definition
-  | "nameDirective" ->
-      if bool_member_default "nestedBlockComments" ~default:false json then
-        Name_directive_nested_block_comments
-      else Name_directive
+  | "nameDirective" -> (
+      match member "syntax" json with
+      | `Null | `String "javascript" -> Name_directive
+      | `String "postgresql" -> Name_directive_postgresql
+      | `String "hash" -> Name_directive_hash
+      | _ -> failwith "unsupported nameDirective syntax")
   | "regex" ->
       Regex
         {
@@ -363,25 +360,17 @@ let names_in_comment comment =
   in
   loop 0 []
 
-let extract_name_directive ~nested_block_comments source =
+let extract_name_directive ~syntax source =
   let length = String.length source in
+  let is_javascript = String.equal syntax "javascript" in
+  let is_postgresql = String.equal syntax "postgresql" in
+  let is_hash = String.equal syntax "hash" in
   let is_sql_identifier_continue character =
     is_name_continue character || Char.equal character '$' || Char.code character >= 128
   in
   let is_dollar_tag_start character = is_name_start character || Char.code character >= 128 in
   let is_dollar_tag_continue character =
     is_name_continue character || Char.code character >= 128
-  in
-  let is_sql_string_terminator = function
-    | ',' | ';' | ')' | ']' | '}' -> true
-    | _ -> false
-  in
-  let rec is_sql_string_terminator_after index =
-    if index >= length then true
-    else if is_whitespace source.[index] then is_sql_string_terminator_after (index + 1)
-    else
-      is_sql_string_terminator source.[index]
-      || String.contains "+-*/%^<>=|&#!~?:." source.[index]
   in
   let dollar_quote_delimiter index =
     let rec tag_end offset =
@@ -401,22 +390,6 @@ let extract_name_directive ~nested_block_comments source =
     if index >= length then index
     else if starts_with_at source index delimiter then index + String.length delimiter
     else skip_dollar_quoted (index + 1) delimiter
-  in
-  let rec has_single_quote_before_line_end index =
-    index < length
-    && not (Char.equal source.[index] '\n')
-    && (Char.equal source.[index] '\'' || has_single_quote_before_line_end (index + 1))
-  in
-  let is_javascript_decrement index =
-    let previous_is_operand =
-      index > 0
-      && not (is_whitespace source.[index - 1])
-      && (is_name_continue source.[index - 1]
-         || Char.equal source.[index - 1] ')'
-         || Char.equal source.[index - 1] ']')
-    in
-    let next_is_name = index + 2 < length && is_name_start source.[index + 2] in
-    previous_is_operand || next_is_name
   in
   let can_start_regex_literal index =
     let rec previous_significant offset =
@@ -510,16 +483,11 @@ let extract_name_directive ~nested_block_comments source =
     else if escaped then skip_quoted (index + 1) quote ~backslash_escapes false
     else if
       Char.equal source.[index] '\\'
-      && (backslash_escapes
-         || (Char.equal quote '\''
-            && index + 1 < length
-            && Char.equal source.[index + 1] '\''
-            && not (is_sql_string_terminator_after (index + 2))
-            && has_single_quote_before_line_end (index + 2)))
+      && backslash_escapes
     then
       skip_quoted (index + 1) quote ~backslash_escapes true
     else if source.[index] = quote then
-      if Char.equal quote '\'' && index + 1 < length && Char.equal source.[index + 1] '\''
+      if is_postgresql && index + 1 < length && Char.equal source.[index + 1] quote
       then skip_quoted (index + 2) quote ~backslash_escapes false
       else index + 1
     else skip_quoted (index + 1) quote ~backslash_escapes false
@@ -531,7 +499,7 @@ let extract_name_directive ~nested_block_comments source =
   in
   let rec block_end index depth =
     if index >= length then (index, depth)
-    else if nested_block_comments && starts_with_at source index "/*" then
+    else if is_postgresql && starts_with_at source index "/*" then
       block_end (index + 2) (depth + 1)
     else if starts_with_at source index "*/" then
       if depth = 1 then (index, 0) else block_end (index + 2) (depth - 1)
@@ -558,23 +526,24 @@ let extract_name_directive ~nested_block_comments source =
       | _ -> (
           match source.[index] with
           | '/'
-            when not (starts_with_at source index "//")
+            when is_javascript
+                 && not (starts_with_at source index "//")
                  && not (starts_with_at source index "/*")
                  && can_start_regex_literal index ->
               loop
                 (skip_regex_flags
                    (skip_regex_literal (index + 1) ~escaped:false ~in_class:false))
                 names template_depths
-          | '$' -> (
+          | '$' when is_postgresql -> (
               match dollar_quote_delimiter index with
               | Some (delimiter, content_start) ->
                   loop (skip_dollar_quoted content_start delimiter) names template_depths
               | None -> loop (index + 1) names template_depths)
-          | '`' -> loop (index + 1) names (0 :: template_depths)
-          | ('"' | '\'') as quote ->
+          | '`' when is_javascript -> loop (index + 1) names (0 :: template_depths)
+          | (('"' | '\'') as quote) | ('`' as quote) when not (Char.equal quote '`') || is_hash ->
               let backslash_escapes =
-                not (Char.equal quote '\'')
-                || (index > 0
+                not is_postgresql
+                || (Char.equal quote '\'' && index > 0
                    && (Char.equal source.[index - 1] 'E'
                       || Char.equal source.[index - 1] 'e')
                    && (index = 1 || not (is_sql_identifier_continue source.[index - 2])))
@@ -582,22 +551,16 @@ let extract_name_directive ~nested_block_comments source =
               loop
                 (skip_quoted (index + 1) quote ~backslash_escapes false)
                 names template_depths
-          | '#'
-            when index + 1 >= length
-                 || (source.[index + 1] <> '>'
-                    && source.[index + 1] <> '-'
-                    && source.[index + 1] <> '#'
-                    && not (is_name_start source.[index + 1])) ->
+          | '#' when is_hash ->
               let end_ = line_end (index + 1) in
               loop end_ (add_comment (index + 1) end_ names) template_depths
-          | '/' when starts_with_at source index "//" ->
+          | '/' when is_javascript && starts_with_at source index "//" ->
               let end_ = line_end (index + 2) in
               loop end_ (add_comment (index + 2) end_ names) template_depths
-          | '-'
-            when starts_with_at source index "--" && not (is_javascript_decrement index) ->
+          | '-' when is_postgresql && starts_with_at source index "--" ->
               let end_ = line_end (index + 2) in
               loop end_ (add_comment (index + 2) end_ names) template_depths
-          | '/' when starts_with_at source index "/*" ->
+          | '/' when (is_javascript || is_postgresql) && starts_with_at source index "/*" ->
               let end_, depth = block_end (index + 2) 1 in
               let next = if depth = 0 then end_ + 2 else end_ in
               loop next (add_comment (index + 2) end_ names) template_depths
@@ -612,9 +575,9 @@ let extract_name_directive ~nested_block_comments source =
 let extract_name ~extension ~source = function
   | Sequential -> None
   | Graphql_definition -> Some (extract_graphql_definition source)
-  | Name_directive -> Some (extract_name_directive ~nested_block_comments:false source)
-  | Name_directive_nested_block_comments ->
-      Some (extract_name_directive ~nested_block_comments:true source)
+  | Name_directive -> Some (extract_name_directive ~syntax:"javascript" source)
+  | Name_directive_postgresql -> Some (extract_name_directive ~syntax:"postgresql" source)
+  | Name_directive_hash -> Some (extract_name_directive ~syntax:"hash" source)
   | Regex { pattern; flags; capture; cardinality } ->
       let regexp =
         compile_regexp pattern

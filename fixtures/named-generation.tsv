@@ -16,23 +16,25 @@ anonymous operation with fragment	graphqlDefinition						fragment Fields on User
 multiple operations	graphqlDefinition						query One { one }\nmutation Two { two }	error	multiple operations
 keywords in comments and strings	graphqlDefinition						# query Fake { nope }\nquery Real { field(arg: \"fragment Fake on User\") }	name	Real
 keywords in block string	graphqlDefinition						query BlockString { field(arg: \"\"\"mutation Fake { nope }\"\"\") }	name	BlockString
-hash name directive	nameDirective						# @name edgeThing\nselect 1	name	edgeThing
+hash name directive	nameDirectiveHash						# @name edgeThing\nselect 1	name	edgeThing
+hash comment starts with identifier	nameDirectiveHash						#documentation @name documentedThing	name	documentedThing
 slash name directive	nameDirective						// @name jsThing\nconst value = 1	name	jsThing
 CR-only name directive	nameDirective						// @name carriageName\rconst value = 1	name	carriageName
-dash name directive	nameDirective						-- @name sqlThing\nselect 1	name	sqlThing
+dash name directive	nameDirectivePostgreSQL						-- @name sqlThing\nselect 1	name	sqlThing
 block name directive	nameDirective						/* docs\n * @name blockThing\n */\nselect 1	name	blockThing
-nested block name directive	nameDirectiveNested						/* outer /* nested */ @name nestedThing */ SELECT 1	name	nestedThing
+nested block name directive	nameDirectivePostgreSQL						/* outer /* nested */ @name nestedThing */ SELECT 1	name	nestedThing
 JavaScript block comments close first	nameDirective						/* mention /* token */\n// @name realFirstClose	name	realFirstClose
 name directive ignores strings	nameDirective						const fake = \"// @name fake\";\n// @name realThing\nconst value = 1	name	realThing
-name directive ignores dollar quote	nameDirective						SELECT $$-- @name fake$$;\n-- @name realDollar\nSELECT 1	name	realDollar
-name directive ignores tagged dollar quote	nameDirective						SELECT $body$# @name fake$body$;\n-- @name realTagged\nSELECT 1	name	realTagged
-name directive ignores Unicode dollar quote	nameDirective						SELECT $é$/* @name fake */$é$; -- @name realUnicodeTag	name	realUnicodeTag
-dollar quote requires boundary	nameDirective						SELECT foo$tag$ FROM items;\n-- @name getItems	name	getItems
-unicode dollar quote boundary	nameDirective						SELECT é$tag$ FROM items;\n-- @name getUnicodeItems	name	getUnicodeItems
-ordinary SQL string final backslash	nameDirective						SELECT '\\'; -- @name getThing	name	getThing
-multiple ordinary SQL strings	nameDirective						SELECT '\\', 'x'; -- @name getMultiple	name	getMultiple
-ordinary SQL string before concatenation	nameDirective						SELECT '\\' || 'x'; -- @name getConcatenated	name	getConcatenated
-escape SQL string backslash quote	nameDirective						SELECT E'it\\'s -- @name fake';\n-- @name realEscape	name	realEscape
+name directive ignores dollar quote	nameDirectivePostgreSQL						SELECT $$-- @name fake$$;\n-- @name realDollar\nSELECT 1	name	realDollar
+name directive ignores tagged dollar quote	nameDirectivePostgreSQL						SELECT $body$# @name fake$body$;\n-- @name realTagged\nSELECT 1	name	realTagged
+name directive ignores Unicode dollar quote	nameDirectivePostgreSQL						SELECT $é$/* @name fake */$é$; -- @name realUnicodeTag	name	realUnicodeTag
+dollar quote requires boundary	nameDirectivePostgreSQL						SELECT foo$tag$ FROM items;\n-- @name getItems	name	getItems
+unicode dollar quote boundary	nameDirectivePostgreSQL						SELECT é$tag$ FROM items;\n-- @name getUnicodeItems	name	getUnicodeItems
+ordinary SQL string final backslash	nameDirectivePostgreSQL						SELECT '\\'; -- @name getThing	name	getThing
+multiple ordinary SQL strings	nameDirectivePostgreSQL						SELECT '\\', 'x'; -- @name getMultiple	name	getMultiple
+ordinary SQL string before concatenation	nameDirectivePostgreSQL						SELECT '\\' || 'x'; -- @name getConcatenated	name	getConcatenated
+PostgreSQL quoted identifier final backslash	nameDirectivePostgreSQL						SELECT \"path\\\"; -- @name getPath	name	getPath
+escape SQL string backslash quote	nameDirectivePostgreSQL						SELECT E'it\\'s -- @name fake';\n-- @name realEscape	name	realEscape
 JavaScript single quote escape	nameDirective						const value = 'it\\'s // @name fake'; // @name realJs	name	realJs
 JavaScript regex literal	nameDirective						const value = /# @name fake/;\n// @name realRegex	name	realRegex
 JavaScript regex character class	nameDirective						const value = /[\\/#] @name fake/;\n// @name realRegexClass	name	realRegexClass
@@ -46,9 +48,9 @@ JavaScript private field	nameDirective						class C { #label = \"@name fake\"; }
 JavaScript template interpolation comment	nameDirective						const value = `${1 /* @name embedded */}`;	name	embedded
 JavaScript template raw text ignored	nameDirective						const value = `/* @name fake */ ${{value: 1 /* @name embeddedObject */}.value}`;	name	embeddedObject
 JavaScript nested template interpolation	nameDirective						const value = `${`nested ${1 /* @name nestedTemplate */}`}`;	name	nestedTemplate
-PostgreSQL hash operator	nameDirective						SELECT doc #>> '{path}', '@name fake'; -- @name realHashOperator	name	realHashOperator
+PostgreSQL hash operator	nameDirectivePostgreSQL						SELECT doc #>> '{path}', '@name fake'; -- @name realHashOperator	name	realHashOperator
 missing name directive	nameDirective						select 1	error	no valid @name
-multiple name directives	nameDirective						# @name One\n-- @name Two\nselect 1	error	multiple @name
+multiple name directives	nameDirectiveHash						# @name One\n# @name Two\nselect 1	error	multiple @name
 query regex with numbered capture	regex	^[ \t]*(?:query|mutation|subscription)[ \t\r\n]+([_A-Za-z][_0-9A-Za-z]*)	m	numbered	1	exactlyOne	query RegexUser { viewer { id } }	name	RegexUser
 zero-width Unicode regex	regex	^(?=😀(?<name>Foo))	u	named	name	exactlyOne	😀Foo	name	Foo
 named capture	regex	^[ \t]*query[ \t\r\n]+(?<operation>[_A-Za-z][_0-9A-Za-z]*)	m	named	operation	first	query NamedCapture { viewer { id } }	name	NamedCapture

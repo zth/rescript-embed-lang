@@ -45,12 +45,14 @@ module JsString = {
 @live type extensionPattern = Generic(string) | FirstClass(string)
 @live type cardinality = ExactlyOne | First
 @live type capture = Numbered(int) | Named(string)
+@live type nameDirectiveSyntax = JavaScript | PostgreSQL | Hash
 @live
 type generatedName =
   | Sequential
   | GraphqlDefinition
   | NameDirective
-  | NameDirectiveNestedBlockComments
+  | NameDirectivePostgreSQL
+  | NameDirectiveHash
   | Regex({pattern: string, flags: string, capture: capture, cardinality: cardinality})
 
 module GeneratedName = {
@@ -253,7 +255,7 @@ module GeneratedName = {
     names
   }
 
-  let extractNameDirective = (~nestedBlockComments=false, source) => {
+  let extractNameDirective = (~syntax, source) => {
     let names: array<string> = []
     let length = source->String.length
     let index = ref(0)
@@ -261,44 +263,9 @@ module GeneratedName = {
       isNameContinue(character) || character === "$" || character >= "\u0080"
     let isDollarTagStart = character => isNameStart(character) || character >= "\u0080"
     let isDollarTagContinue = character => isNameContinue(character) || character >= "\u0080"
-    let isSqlStringTerminator = character =>
-      character === "" ||
-      character === "," ||
-      character === ";" ||
-      character === ")" ||
-      character === "]" ||
-      character === "}"
-    let isSqlStringTerminatorAfter = start => {
-      let cursor = ref(start)
-      while cursor.contents < length && isWhitespace(source->String.charAt(cursor.contents)) {
-        cursor := cursor.contents + 1
-      }
-      let character = source->String.charAt(cursor.contents)
-      isSqlStringTerminator(character) || "+-*/%^<>=|&#!~?:."->String.includes(character)
-    }
-    let hasSingleQuoteBeforeLineEnd = start => {
-      let cursor = ref(start)
-      let found = ref(false)
-      while (
-        cursor.contents < length &&
-        source->String.charAt(cursor.contents) !== "\n" &&
-        !found.contents
-      ) {
-        if source->String.charAt(cursor.contents) === "'" {
-          found := true
-        } else {
-          cursor := cursor.contents + 1
-        }
-      }
-      found.contents
-    }
-    let isJavaScriptDecrement = start => {
-      let previous = source->String.charAt(start - 1)
-      let next = source->String.charAt(start + 2)
-      (previous !== "" &&
-      !isWhitespace(previous) &&
-      (isNameContinue(previous) || ")]"->String.includes(previous))) || isNameStart(next)
-    }
+    let isJavaScript = syntax === JavaScript
+    let isPostgreSQL = syntax === PostgreSQL
+    let isHash = syntax === Hash
     let canStartRegexLiteral = start => {
       let cursor = ref(start - 1)
       while cursor.contents >= 0 && isWhitespace(source->String.charAt(cursor.contents)) {
@@ -407,6 +374,7 @@ module GeneratedName = {
         index := index.contents + 1
       | _ =>
         if (
+          isJavaScript &&
           character === "/" &&
           source->String.charAt(index.contents + 1) !== "/" &&
           source->String.charAt(index.contents + 1) !== "*" &&
@@ -435,9 +403,10 @@ module GeneratedName = {
             index := index.contents + 1
           }
         } else if (
+          isPostgreSQL &&
           character === "$" &&
-            (index.contents === 0 ||
-              !isSqlIdentifierContinue(source->String.charAt(index.contents - 1)))
+          (index.contents === 0 ||
+            !isSqlIdentifierContinue(source->String.charAt(index.contents - 1)))
         ) {
           let delimiterEnd = ref(index.contents + 1)
           while (
@@ -470,19 +439,20 @@ module GeneratedName = {
           } else {
             index := index.contents + 1
           }
-        } else if character === "`" {
+        } else if isJavaScript && character === "`" {
           templateDepths[templateCount.contents] = 0
           templateCount := templateCount.contents + 1
           index := index.contents + 1
-        } else if character === "\"" || character === "'" {
+        } else if character === "\"" || character === "'" || (isHash && character === "`") {
           let quote = character
           let escapesWithBackslash =
-            quote !== "'" ||
-              (index.contents > 0 &&
-              (source->String.charAt(index.contents - 1) === "E" ||
-                source->String.charAt(index.contents - 1) === "e") &&
-              (index.contents === 1 ||
-                !isSqlIdentifierContinue(source->String.charAt(index.contents - 2))))
+            !isPostgreSQL ||
+            (quote === "'" &&
+            index.contents > 0 &&
+            (source->String.charAt(index.contents - 1) === "E" ||
+              source->String.charAt(index.contents - 1) === "e") &&
+            (index.contents === 1 ||
+              !isSqlIdentifierContinue(source->String.charAt(index.contents - 2))))
           index := index.contents + 1
           let escaped = ref(false)
           let closed = ref(false)
@@ -491,17 +461,10 @@ module GeneratedName = {
             index := index.contents + 1
             if escaped.contents {
               escaped := false
-            } else if (
-              current === "\\" &&
-                (escapesWithBackslash ||
-                (quote === "'" &&
-                source->String.charAt(index.contents) === "'" &&
-                !isSqlStringTerminatorAfter(index.contents + 1) &&
-                hasSingleQuoteBeforeLineEnd(index.contents + 1)))
-            ) {
+            } else if current === "\\" && escapesWithBackslash {
               escaped := true
             } else if current === quote {
-              if quote === "'" && source->String.charAt(index.contents) === "'" {
+              if isPostgreSQL && source->String.charAt(index.contents) === quote {
                 index := index.contents + 1
               } else {
                 closed := true
@@ -510,16 +473,15 @@ module GeneratedName = {
           }
         } else {
           let lineComment =
-            (character === "#" &&
-            source->String.charAt(index.contents + 1) !== ">" &&
-            source->String.charAt(index.contents + 1) !== "-" &&
-            source->String.charAt(index.contents + 1) !== "#" &&
-            !isNameStart(source->String.charAt(index.contents + 1))) ||
-            character === "/" && source->String.charAt(index.contents + 1) === "/" ||
-            (character === "-" &&
-            source->String.charAt(index.contents + 1) === "-" &&
-            !isJavaScriptDecrement(index.contents))
-          let blockComment = character === "/" && source->String.charAt(index.contents + 1) === "*"
+            (isHash && character === "#") ||
+            isJavaScript &&
+            character === "/" &&
+            source->String.charAt(index.contents + 1) === "/" ||
+            (isPostgreSQL && character === "-" && source->String.charAt(index.contents + 1) === "-")
+          let blockComment =
+            (isJavaScript || isPostgreSQL) &&
+            character === "/" &&
+            source->String.charAt(index.contents + 1) === "*"
           if lineComment {
             let start =
               index.contents + if character === "#" {
@@ -545,7 +507,7 @@ module GeneratedName = {
             let depth = ref(1)
             while end_.contents < length && depth.contents > 0 {
               if (
-                nestedBlockComments &&
+                isPostgreSQL &&
                 source->String.slice(~start=end_.contents, ~end=end_.contents + 2) === "/*"
               ) {
                 depth := depth.contents + 1
@@ -684,9 +646,9 @@ module GeneratedName = {
     switch config {
     | Sequential => None
     | GraphqlDefinition => Some(extractGraphqlDefinition(source))
-    | NameDirective => Some(extractNameDirective(source))
-    | NameDirectiveNestedBlockComments =>
-      Some(extractNameDirective(~nestedBlockComments=true, source))
+    | NameDirective => Some(extractNameDirective(~syntax=JavaScript, source))
+    | NameDirectivePostgreSQL => Some(extractNameDirective(~syntax=PostgreSQL, source))
+    | NameDirectiveHash => Some(extractNameDirective(~syntax=Hash, source))
     | Regex({pattern, flags, capture, cardinality}) =>
       try {
         Some(extractRegex(~pattern, ~flags, ~capture, ~cardinality, ~source).name)
@@ -706,11 +668,19 @@ module GeneratedName = {
     | GraphqlDefinition =>
       Dict.fromArray([("kind", JSON.Encode.string("graphqlDefinition"))])->JSON.Encode.object
     | NameDirective =>
-      Dict.fromArray([("kind", JSON.Encode.string("nameDirective"))])->JSON.Encode.object
-    | NameDirectiveNestedBlockComments =>
       Dict.fromArray([
         ("kind", JSON.Encode.string("nameDirective")),
-        ("nestedBlockComments", JSON.Encode.bool(true)),
+        ("syntax", JSON.Encode.string("javascript")),
+      ])->JSON.Encode.object
+    | NameDirectivePostgreSQL =>
+      Dict.fromArray([
+        ("kind", JSON.Encode.string("nameDirective")),
+        ("syntax", JSON.Encode.string("postgresql")),
+      ])->JSON.Encode.object
+    | NameDirectiveHash =>
+      Dict.fromArray([
+        ("kind", JSON.Encode.string("nameDirective")),
+        ("syntax", JSON.Encode.string("hash")),
       ])->JSON.Encode.object
     | Regex({pattern, flags, capture, cardinality}) =>
       let capture = switch capture {
@@ -926,7 +896,7 @@ let proposeForSource = async (t: t<_>, path, ~config, ~outputDir, ~debug) => {
       col: 0,
     }
     [generated, ...modulesAndExtras->Array.flatMap(((_, _, extras)) => extras)]
-  | GraphqlDefinition | NameDirective | NameDirectiveNestedBlockComments | Regex(_) =>
+  | GraphqlDefinition | NameDirective | NameDirectivePostgreSQL | NameDirectiveHash | Regex(_) =>
     let proposed = await Promise.all(
       embeds->Array.map(async embed => {
         let location = {
