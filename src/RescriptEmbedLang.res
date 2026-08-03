@@ -274,65 +274,6 @@ module GeneratedName = {
       while cursor.contents >= 0 && isWhitespace(source->String.charAt(cursor.contents)) {
         cursor := cursor.contents - 1
       }
-      let previousJavaScriptCode = start => {
-        let cursor = ref(start)
-        let searching = ref(true)
-        while searching.contents {
-          while cursor.contents >= 0 && isWhitespace(source->String.charAt(cursor.contents)) {
-            cursor := cursor.contents - 1
-          }
-          if (
-            cursor.contents >= 1 &&
-            source->String.slice(~start=cursor.contents - 1, ~end=cursor.contents + 1) === "*/"
-          ) {
-            let scan = ref(cursor.contents - 2)
-            let opening = ref(-1)
-            let previousComment = ref(false)
-            while scan.contents >= 0 && !previousComment.contents {
-              if (
-                scan.contents >= 1 &&
-                source->String.slice(~start=scan.contents - 1, ~end=scan.contents + 1) === "*/"
-              ) {
-                previousComment := true
-              } else {
-                if source->String.slice(~start=scan.contents, ~end=scan.contents + 2) === "/*" {
-                  opening := scan.contents
-                }
-                scan := scan.contents - 1
-              }
-            }
-            if opening.contents >= 0 {
-              cursor := opening.contents - 1
-            } else {
-              searching := false
-            }
-          } else {
-            let lineStart = ref(cursor.contents)
-            while (
-              lineStart.contents > 0 &&
-              source->String.charAt(lineStart.contents - 1) !== "\n" &&
-              source->String.charAt(lineStart.contents - 1) !== "\r"
-            ) {
-              lineStart := lineStart.contents - 1
-            }
-            let lineComment = ref(-1)
-            let scan = ref(lineStart.contents)
-            while scan.contents < cursor.contents && lineComment.contents < 0 {
-              if source->String.slice(~start=scan.contents, ~end=scan.contents + 2) === "//" {
-                lineComment := scan.contents
-              } else {
-                scan := scan.contents + 1
-              }
-            }
-            if lineComment.contents >= 0 {
-              cursor := lineComment.contents - 1
-            } else {
-              searching := false
-            }
-          }
-        }
-        cursor.contents
-      }
       let followsControlCondition = closeParen => {
         let depth = ref(1)
         let openParen = ref(closeParen - 1)
@@ -424,7 +365,7 @@ module GeneratedName = {
         while cursor.contents >= 0 && isWhitespace(source->String.charAt(cursor.contents)) {
           cursor := cursor.contents - 1
         }
-        source->String.charAt(previousJavaScriptCode(cursor.contents)) !== "." && [
+        [
           "return",
           "throw",
           "case",
@@ -445,6 +386,8 @@ module GeneratedName = {
     }
     let templateDepths: array<int> = []
     let templateCount = ref(0)
+    let javaScriptPreviousTokenWasDot = ref(false)
+    let javaScriptLastIdentifierWasMember = ref(false)
     let shellParameterDepth = ref(0)
     let shellParameterCommandDepth = ref(0)
     let shellParameterBacktick = ref(false)
@@ -1036,13 +979,27 @@ module GeneratedName = {
         templateDepths[templateCount.contents - 1] = depth - 1
         index := index.contents + 1
       | _ =>
-        if (
+        if isJavaScript && isNameStart(character) {
+          let identifierEnd = ref(index.contents + 1)
+          while (
+            identifierEnd.contents < length &&
+            isNameContinue(source->String.charAt(identifierEnd.contents))
+          ) {
+            identifierEnd := identifierEnd.contents + 1
+          }
+          javaScriptLastIdentifierWasMember := javaScriptPreviousTokenWasDot.contents
+          javaScriptPreviousTokenWasDot := false
+          index := identifierEnd.contents
+        } else if (
           isJavaScript &&
           character === "/" &&
           source->String.charAt(index.contents + 1) !== "/" &&
           source->String.charAt(index.contents + 1) !== "*" &&
+          !javaScriptLastIdentifierWasMember.contents &&
           canStartRegexLiteral(index.contents)
         ) {
+          javaScriptLastIdentifierWasMember := false
+          javaScriptPreviousTokenWasDot := false
           index := index.contents + 1
           let escaped = ref(false)
           let inClass = ref(false)
@@ -1103,6 +1060,8 @@ module GeneratedName = {
             index := index.contents + 1
           }
         } else if isJavaScript && character === "`" {
+          javaScriptLastIdentifierWasMember := false
+          javaScriptPreviousTokenWasDot := false
           templateDepths[templateCount.contents] = 0
           templateCount := templateCount.contents + 1
           index := index.contents + 1
@@ -1180,6 +1139,10 @@ module GeneratedName = {
           shellQuotedContextCount := shellQuotedContextCount.contents + 1
           index := index.contents + 1
         } else if character === "\"" || character === "'" {
+          if isJavaScript {
+            javaScriptLastIdentifierWasMember := false
+            javaScriptPreviousTokenWasDot := false
+          }
           let quote = character
           let escapesWithBackslash =
             isJavaScript ||
@@ -1282,6 +1245,10 @@ module GeneratedName = {
                 end_.contents
               }
           } else {
+            if isJavaScript && !isWhitespace(character) {
+              javaScriptLastIdentifierWasMember := false
+              javaScriptPreviousTokenWasDot := character === "."
+            }
             index := index.contents + 1
           }
         }

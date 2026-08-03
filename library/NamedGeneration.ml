@@ -401,43 +401,6 @@ let extract_name_directive ~syntax source =
       else if is_whitespace source.[offset] then previous_significant (offset - 1)
       else Some source.[offset]
     in
-    let previous_javascript_code start =
-      let cursor = ref start in
-      let searching = ref true in
-      while !searching do
-        while !cursor >= 0 && is_whitespace source.[!cursor] do
-          decr cursor
-        done;
-        if !cursor >= 1 && starts_with_at source (!cursor - 1) "*/" then (
-          let scan = ref (!cursor - 2) in
-          let opening = ref (-1) in
-          let previous_comment = ref false in
-          while !scan >= 0 && not !previous_comment do
-            if !scan >= 1 && starts_with_at source (!scan - 1) "*/" then
-              previous_comment := true
-            else (
-              if starts_with_at source !scan "/*" then opening := !scan;
-              decr scan)
-          done;
-          if !opening >= 0 then cursor := !opening - 1 else searching := false)
-        else
-          let line_start = ref !cursor in
-          while !line_start > 0 && source.[!line_start - 1] <> '\n'
-                && source.[!line_start - 1] <> '\r'
-          do
-            decr line_start
-          done;
-          let line_comment = ref None in
-          let scan = ref !line_start in
-          while !scan < !cursor && Option.is_none !line_comment do
-            if starts_with_at source !scan "//" then line_comment := Some !scan else incr scan
-          done;
-          match !line_comment with
-          | Some comment_start -> cursor := comment_start - 1
-          | None -> searching := false
-      done;
-      !cursor
-    in
     let follows_control_condition close_paren =
       let rec find_open offset depth =
         if offset < 0 then None
@@ -524,9 +487,7 @@ let extract_name_directive ~syntax source =
           last_significant (index - 1)
         in
         let start = word_start (end_ - 1) in
-        let previous = previous_javascript_code (start - 1) in
-        (previous < 0 || source.[previous] <> '.')
-        && List.mem (String.sub source start (end_ - start))
+        List.mem (String.sub source start (end_ - start))
           [
             "return";
             "throw";
@@ -970,6 +931,8 @@ let extract_name_directive ~syntax source =
   let shell_command_backtick = ref false in
   let pending_shell_heredocs = ref [] in
   let shell_quoted_contexts = ref [] in
+  let javascript_previous_token_was_dot = ref false in
+  let javascript_last_identifier_was_member = ref false in
   let set_shell_quoted_context value =
     match !shell_quoted_contexts with
     | _ :: rest -> shell_quoted_contexts := value :: rest
@@ -1087,11 +1050,23 @@ let extract_name_directive ~syntax source =
           loop (index + 1) names ((depth - 1) :: rest)
       | _ -> (
           match source.[index] with
+          | character when is_javascript && is_name_start character ->
+              let rec identifier_end offset =
+                if offset < length && is_name_continue source.[offset] then
+                  identifier_end (offset + 1)
+                else offset
+              in
+              javascript_last_identifier_was_member := !javascript_previous_token_was_dot;
+              javascript_previous_token_was_dot := false;
+              loop (identifier_end (index + 1)) names template_depths
           | '/'
             when is_javascript
                  && not (starts_with_at source index "//")
                  && not (starts_with_at source index "/*")
+                 && not !javascript_last_identifier_was_member
                  && can_start_regex_literal index ->
+              javascript_last_identifier_was_member := false;
+              javascript_previous_token_was_dot := false;
               loop
                 (skip_regex_flags
                    (skip_regex_literal (index + 1) ~escaped:false ~in_class:false))
@@ -1101,7 +1076,10 @@ let extract_name_directive ~syntax source =
               | Some (delimiter, content_start) ->
                   loop (skip_dollar_quoted content_start delimiter) names template_depths
               | None -> loop (index + 1) names template_depths)
-          | '`' when is_javascript -> loop (index + 1) names (0 :: template_depths)
+          | '`' when is_javascript ->
+              javascript_last_identifier_was_member := false;
+              javascript_previous_token_was_dot := false;
+              loop (index + 1) names (0 :: template_depths)
           | (('"' | '\'') as quote)
             when is_python && python_fstring_prefix index ->
               let triple = String.make 3 quote in
@@ -1136,6 +1114,9 @@ let extract_name_directive ~syntax source =
               shell_quoted_contexts := 0 :: !shell_quoted_contexts;
               loop (index + 1) names template_depths
           | (('"' | '\'') as quote) ->
+              if is_javascript then (
+                javascript_last_identifier_was_member := false;
+                javascript_previous_token_was_dot := false);
               let backslash_escapes =
                 is_javascript || is_python || (is_shell && not (Char.equal quote '\''))
                 || (Char.equal quote '\'' && index > 0
@@ -1168,7 +1149,11 @@ let extract_name_directive ~syntax source =
               let end_, depth = block_end (index + 2) 1 in
               let next = if depth = 0 then end_ + 2 else end_ in
               loop next (add_comment (index + 2) end_ names) template_depths
-          | _ -> loop (index + 1) names template_depths)
+          | character ->
+              if is_javascript && not (is_whitespace character) then (
+                javascript_last_identifier_was_member := false;
+                javascript_previous_token_was_dot := Char.equal character '.');
+              loop (index + 1) names template_depths)
   in
   match
     List.rev_append !python_fstring_names

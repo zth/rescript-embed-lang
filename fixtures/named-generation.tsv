@@ -94,3 +94,4 @@ JavaScript keyword property division	nameDirective						const ratio = obj.in / 2
 JavaScript keyword property after block comment	nameDirective						const ratio = obj. /* gap */ in / 2; // @name realBlockProperty	name	realBlockProperty
 JavaScript keyword property after line comment	nameDirective						const ratio = obj. // gap\n in / 2; // @name realLineProperty	name	realLineProperty
 JavaScript keyword property after nested-looking comment	nameDirective						const ratio = obj. /* mention /* token */ in / 2; // @name realNestedLookingProperty	name	realNestedLookingProperty
+JavaScript keyword property after earlier marker string	nameDirective						const text = \"/*\"; const ratio = obj. /* gap */ in / 2; // @name realEarlierMarkerProperty	name	realEarlierMarkerProperty
