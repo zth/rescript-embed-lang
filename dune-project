@@ -13,5 +13,4 @@
   (dune
    (>= 3.8))
   ppxlib
-  (quickjs (= 0.5.1))
-  (yojson :with-test)))
+  (quickjs (= 0.5.1))))
