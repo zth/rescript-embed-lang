@@ -284,6 +284,13 @@ module GeneratedName = {
       }
       found.contents
     }
+    let isJavaScriptDecrement = start => {
+      let previous = source->String.charAt(start - 1)
+      let next = source->String.charAt(start + 2)
+      (previous !== "" &&
+      !isWhitespace(previous) &&
+      (isNameContinue(previous) || ")]"->String.includes(previous))) || isNameStart(next)
+    }
     let canStartRegexLiteral = start => {
       let cursor = ref(start - 1)
       while cursor.contents >= 0 && isWhitespace(source->String.charAt(cursor.contents)) {
@@ -500,7 +507,9 @@ module GeneratedName = {
             source->String.charAt(index.contents + 1) !== "-" &&
             source->String.charAt(index.contents + 1) !== "#") ||
             character === "/" && source->String.charAt(index.contents + 1) === "/" ||
-            (character === "-" && source->String.charAt(index.contents + 1) === "-")
+            (character === "-" &&
+            source->String.charAt(index.contents + 1) === "-" &&
+            !isJavaScriptDecrement(index.contents))
           let blockComment = character === "/" && source->String.charAt(index.contents + 1) === "*"
           if lineComment {
             let start =

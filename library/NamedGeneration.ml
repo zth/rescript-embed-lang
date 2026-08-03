@@ -400,6 +400,17 @@ let extract_name_directive ~nested_block_comments source =
     && not (Char.equal source.[index] '\n')
     && (Char.equal source.[index] '\'' || has_single_quote_before_line_end (index + 1))
   in
+  let is_javascript_decrement index =
+    let previous_is_operand =
+      index > 0
+      && not (is_whitespace source.[index - 1])
+      && (is_name_continue source.[index - 1]
+         || Char.equal source.[index - 1] ')'
+         || Char.equal source.[index - 1] ']')
+    in
+    let next_is_name = index + 2 < length && is_name_start source.[index + 2] in
+    previous_is_operand || next_is_name
+  in
   let can_start_regex_literal index =
     let rec previous_significant offset =
       if offset < 0 then None
@@ -574,7 +585,8 @@ let extract_name_directive ~nested_block_comments source =
           | '/' when starts_with_at source index "//" ->
               let end_ = line_end (index + 2) in
               loop end_ (add_comment (index + 2) end_ names) template_depths
-          | '-' when starts_with_at source index "--" ->
+          | '-'
+            when starts_with_at source index "--" && not (is_javascript_decrement index) ->
               let end_ = line_end (index + 2) in
               loop end_ (add_comment (index + 2) end_ names) template_depths
           | '/' when starts_with_at source index "/*" ->
