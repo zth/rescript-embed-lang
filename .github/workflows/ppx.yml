@@ -8,8 +8,18 @@ on:
 
 jobs:
   ppx_linux:
+    strategy:
+      matrix:
+        include:
+          - platform: ubuntu-24.04-arm
+            artifact: ppx-linux-arm64
+            debian_arch: arm64
+          - platform: ubuntu-latest
+            artifact: ppx-linux
+            debian_arch: amd64
+
     name: PPX Linux
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.platform }}
     container:
       image: debian:bullseye
     steps:
@@ -28,6 +38,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Trust the mounted workspace
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Verify build architecture
+        run: test "$(dpkg --print-architecture)" = "${{ matrix.debian_arch }}"
       - name: Set up OCaml
         uses: ocaml/setup-ocaml@v3
         with:
@@ -40,16 +52,16 @@ jobs:
         run: |
           opam exec -- dune build --profile release-static bin/RescriptEmbedLang.exe
           opam exec -- dune build @runtest
-          cp _build/default/bin/RescriptEmbedLang.exe ppx-linux
+          cp _build/default/bin/RescriptEmbedLang.exe ${{ matrix.artifact }}
       - name: Strip binary
         run: |
-          chmod +w ppx-linux
-          strip ppx-linux
+          chmod +w ${{ matrix.artifact }}
+          strip ${{ matrix.artifact }}
       - name: Upload PPX artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ppx-linux
-          path: ppx-*
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
           if-no-files-found: error
   ppx_compat:
     name: PPX source compatibility (OCaml 4.14)

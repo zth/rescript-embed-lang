@@ -9,8 +9,18 @@ on:
 
 jobs:
   build-ppx-linux:
+    strategy:
+      matrix:
+        include:
+          - platform: ubuntu-24.04-arm
+            artifact: ppx-linux-arm64
+            debian_arch: arm64
+          - platform: ubuntu-latest
+            artifact: ppx-linux
+            debian_arch: amd64
+
     name: Build PPX for release
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.platform }}
     container:
       image: debian:bullseye
     steps:
@@ -29,6 +39,8 @@ jobs:
       - uses: actions/checkout@v7
       - name: Trust the mounted workspace
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Verify build architecture
+        run: test "$(dpkg --print-architecture)" = "${{ matrix.debian_arch }}"
       - name: Set up OCaml
         uses: ocaml/setup-ocaml@v3
         with:
@@ -40,16 +52,16 @@ jobs:
       - name: Build PPX
         run: |
           opam exec -- dune build --profile release-static bin/RescriptEmbedLang.exe
-          cp _build/default/bin/RescriptEmbedLang.exe ppx-linux
+          cp _build/default/bin/RescriptEmbedLang.exe ${{ matrix.artifact }}
       - name: Strip binary
         run: |
-          chmod +w ppx-linux
-          strip ppx-linux
+          chmod +w ${{ matrix.artifact }}
+          strip ${{ matrix.artifact }}
       - name: Upload PPX artifact
         uses: actions/upload-artifact@v7
         with:
-          name: ppx-linux
-          path: ppx-*
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
           if-no-files-found: error
 
   build-ppx:
@@ -127,6 +139,11 @@ jobs:
 
       - uses: actions/download-artifact@v8
         with:
+          name: ppx-linux-arm64
+          path: release
+
+      - uses: actions/download-artifact@v8
+        with:
           name: ppx-macos-latest
           path: release
 
@@ -140,11 +157,20 @@ jobs:
           name: ppx-windows-latest
           path: release
 
+      - name: Verify release binaries
+        run: |
+          test -f release/ppx-linux
+          test -f release/ppx-linux-arm64
+          test -f release/ppx-macos-latest
+          test -f release/ppx-macos-arm64
+          test -f release/ppx-windows-latest
+
       - name: Remove artifacts
         uses: geekyeggo/delete-artifact@v6
         with:
           name: |
             ppx-linux
+            ppx-linux-arm64
             ppx-macos-latest
             ppx-macos-arm64
             ppx-windows-latest

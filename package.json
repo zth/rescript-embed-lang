@@ -15,7 +15,7 @@
   },
   "scripts": {
     "build": "rescript",
-    "test": "bun test --path-ignore-patterns='lib/**' js-tests"
+    "test": "node --test postinstall.test.js && bun test --path-ignore-patterns='lib/**' js-tests"
   },
   "repository": {
     "type": "git",
