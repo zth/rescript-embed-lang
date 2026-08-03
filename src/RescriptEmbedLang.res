@@ -1665,6 +1665,9 @@ let commitFiles = async (
     [...previousSet->Set.toArray, ...files->Array.map(file => file.fileName)],
   )
   let shouldWriteIndex = files->Array.length > 0
+  let installedFiles: Set.t<string> = Set.make()
+  let installedIndex = ref(false)
+  let installedConfig = ref(false)
 
   try {
     files->Array.forEach(file => {
@@ -1704,11 +1707,14 @@ let commitFiles = async (
       let target = Path.join([outputDir, file.fileName])
       target->makeParentDirectory
       SyncFs.rename(Path.join([stage, file.fileName]), target)
+      installedFiles->Set.add(file.fileName)
     })
     if shouldWriteIndex {
       SyncFs.rename(Path.join([stage, "index.json"]), indexPath)
+      installedIndex := true
     }
     SyncFs.rename(configTemporary, configPath)
+    installedConfig := true
     SyncFs.remove(configBackup, {force: true})
     SyncFs.remove(backup, {recursive: true, force: true})
     SyncFs.remove(stage, {recursive: true, force: true})
@@ -1716,29 +1722,35 @@ let commitFiles = async (
   | JsExn(error) =>
     affected->Set.forEach(fileName => {
       let target = Path.join([outputDir, fileName])
-      if target->SyncFs.exists {
-        SyncFs.remove(target, {force: true})
-      }
       let saved = Path.join([backup, fileName])
       if saved->SyncFs.exists {
+        if target->SyncFs.exists {
+          SyncFs.remove(target, {force: true})
+        }
         target->makeParentDirectory
         SyncFs.rename(saved, target)
+      } else if installedFiles->Set.has(fileName) && target->SyncFs.exists {
+        SyncFs.remove(target, {force: true})
       }
     })
 
-    if indexPath->SyncFs.exists {
-      SyncFs.remove(indexPath, {force: true})
-    }
     let savedIndex = Path.join([backup, "index.json"])
     if savedIndex->SyncFs.exists {
+      if indexPath->SyncFs.exists {
+        SyncFs.remove(indexPath, {force: true})
+      }
       SyncFs.rename(savedIndex, indexPath)
+    } else if installedIndex.contents && indexPath->SyncFs.exists {
+      SyncFs.remove(indexPath, {force: true})
     }
 
-    if configPath->SyncFs.exists {
-      SyncFs.remove(configPath, {force: true})
-    }
     if configBackup->SyncFs.exists {
+      if configPath->SyncFs.exists {
+        SyncFs.remove(configPath, {force: true})
+      }
       SyncFs.rename(configBackup, configPath)
+    } else if installedConfig.contents && configPath->SyncFs.exists {
+      SyncFs.remove(configPath, {force: true})
     }
     SyncFs.remove(configTemporary, {force: true})
 
