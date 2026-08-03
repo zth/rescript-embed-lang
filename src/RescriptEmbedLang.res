@@ -1661,8 +1661,16 @@ let commitFiles = async (
     ->Int.toString}-${SyncFs.nowMilliseconds()->Float.toString}`
   let configTemporary = configPath ++ ".tmp-" ++ transactionId
   let configBackup = configPath ++ ".backup-" ++ transactionId
-  let affected = Set.fromArray(
-    [...previousSet->Set.toArray, ...files->Array.map(file => file.fileName)],
+  let affected: array<string> = []
+  let affectedFolds: Set.t<string> = Set.make()
+  [...previousSet->Set.toArray, ...files->Array.map(file => file.fileName)]->Array.forEach(
+    fileName => {
+      let folded = fileName->caseFold
+      if !(affectedFolds->Set.has(folded)) {
+        affectedFolds->Set.add(folded)
+        affected->Array.push(fileName)
+      }
+    },
   )
   let shouldWriteIndex = files->Array.length > 0
   let installedFiles: Set.t<string> = Set.make()
@@ -1689,7 +1697,7 @@ let commitFiles = async (
     }
     configPath->makeParentDirectory
     SyncFs.writeText(configTemporary, configContent)
-    affected->Set.forEach(fileName => {
+    affected->Array.forEach(fileName => {
       let target = Path.join([outputDir, fileName])
       if target->SyncFs.exists {
         let saved = Path.join([backup, fileName])
@@ -1720,17 +1728,18 @@ let commitFiles = async (
     SyncFs.remove(stage, {recursive: true, force: true})
   } catch {
   | JsExn(error) =>
-    affected->Set.forEach(fileName => {
+    installedFiles->Set.forEach(fileName => {
+      let target = Path.join([outputDir, fileName])
+      if target->SyncFs.exists {
+        SyncFs.remove(target, {force: true})
+      }
+    })
+    affected->Array.forEach(fileName => {
       let target = Path.join([outputDir, fileName])
       let saved = Path.join([backup, fileName])
       if saved->SyncFs.exists {
-        if target->SyncFs.exists {
-          SyncFs.remove(target, {force: true})
-        }
         target->makeParentDirectory
         SyncFs.rename(saved, target)
-      } else if installedFiles->Set.has(fileName) && target->SyncFs.exists {
-        SyncFs.remove(target, {force: true})
       }
     })
 
