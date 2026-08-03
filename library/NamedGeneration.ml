@@ -561,6 +561,7 @@ let extract_name_directive ~syntax source =
     done;
     let delimiter = Buffer.create 16 in
     let consumed = ref false in
+    let quoted = ref false in
     let valid = ref true in
     let is_delimiter_end = function
       | ' ' | '\t' | '\r' | '\n' | ';' | '&' | '|' | '<' | '>' | '(' | ')' -> true
@@ -570,11 +571,13 @@ let extract_name_directive ~syntax source =
       consumed := true;
       match source.[!cursor] with
       | '\\' ->
+          quoted := true;
           if !cursor + 1 < length then (
             Buffer.add_char delimiter source.[!cursor + 1];
             cursor := !cursor + 2)
           else valid := false
       | ('"' | '\'') as quote ->
+          quoted := true;
           incr cursor;
           let closed = ref false in
           while !cursor < length && not !closed do
@@ -600,13 +603,163 @@ let extract_name_directive ~syntax source =
           Buffer.add_char delimiter character;
           incr cursor
     done;
-    if !consumed && !valid then Some (Buffer.contents delimiter, strip_tabs, !cursor)
+    if !consumed && !valid then
+      Some (Buffer.contents delimiter, strip_tabs, !quoted, !cursor)
     else None
+  in
+  let shell_expansion_names = ref [] in
+  (* Modes: 0 executable command, 1 double-quoted text, 2 parameter text,
+     3 arithmetic text, and 4 expanding heredoc text. *)
+  let rec scan_shell_expansion_region ~start ~end_ ~mode ~depth =
+    let comment_start index =
+      index = start
+      || index = 0
+      ||
+      match source.[index - 1] with
+      | ' ' | '\t' | '\r' | '\n' | ';' | '&' | '|' | '(' | ')' -> true
+      | _ -> false
+    in
+    let rec skip_single_quote index =
+      if index >= end_ then index
+      else if Char.equal source.[index] '\'' then index + 1
+      else skip_single_quote (index + 1)
+    in
+    let rec bounded_line_end index =
+      if index < end_ && not (Char.equal source.[index] '\n')
+         && not (Char.equal source.[index] '\r')
+      then bounded_line_end (index + 1)
+      else index
+    in
+    let rec loop cursor nesting =
+      if cursor >= end_ then cursor
+      else
+        let character = source.[cursor] in
+        if mode = 4 then
+          if Char.equal character '\\' then loop (min (cursor + 2) end_) nesting
+          else if starts_with_at source cursor "$((" then
+            loop
+              (scan_shell_expansion_region ~start:(cursor + 3) ~end_ ~mode:3 ~depth:2)
+              nesting
+          else if starts_with_at source cursor "$(" then
+            loop
+              (scan_shell_expansion_region ~start:(cursor + 2) ~end_ ~mode:0 ~depth:1)
+              nesting
+          else if starts_with_at source cursor "${" then
+            loop
+              (scan_shell_expansion_region ~start:(cursor + 2) ~end_ ~mode:2 ~depth:1)
+              nesting
+          else if Char.equal character '`' then
+            loop
+              (scan_shell_expansion_region ~start:(cursor + 1) ~end_ ~mode:0 ~depth:(-1))
+              nesting
+          else loop (cursor + 1) nesting
+        else if mode = 1 then
+          if Char.equal character '\\' then loop (min (cursor + 2) end_) nesting
+          else if Char.equal character '"' then cursor + 1
+          else if starts_with_at source cursor "$((" then
+            loop
+              (scan_shell_expansion_region ~start:(cursor + 3) ~end_ ~mode:3 ~depth:2)
+              nesting
+          else if starts_with_at source cursor "$(" then
+            loop
+              (scan_shell_expansion_region ~start:(cursor + 2) ~end_ ~mode:0 ~depth:1)
+              nesting
+          else if starts_with_at source cursor "${" then
+            loop
+              (scan_shell_expansion_region ~start:(cursor + 2) ~end_ ~mode:2 ~depth:1)
+              nesting
+          else if Char.equal character '`' then
+            loop
+              (scan_shell_expansion_region ~start:(cursor + 1) ~end_ ~mode:0 ~depth:(-1))
+              nesting
+          else loop (cursor + 1) nesting
+        else if mode = 2 then
+          if Char.equal character '\\' then loop (min (cursor + 2) end_) nesting
+          else if starts_with_at source cursor "$((" then
+            loop
+              (scan_shell_expansion_region ~start:(cursor + 3) ~end_ ~mode:3 ~depth:2)
+              nesting
+          else if starts_with_at source cursor "$(" then
+            loop
+              (scan_shell_expansion_region ~start:(cursor + 2) ~end_ ~mode:0 ~depth:1)
+              nesting
+          else if starts_with_at source cursor "${" then loop (cursor + 2) (nesting + 1)
+          else if Char.equal character '`' then
+            loop
+              (scan_shell_expansion_region ~start:(cursor + 1) ~end_ ~mode:0 ~depth:(-1))
+              nesting
+          else if Char.equal character '"' then
+            loop
+              (scan_shell_expansion_region ~start:(cursor + 1) ~end_ ~mode:1 ~depth:0)
+              nesting
+          else if Char.equal character '}' then
+            if nesting = 1 then cursor + 1 else loop (cursor + 1) (nesting - 1)
+          else loop (cursor + 1) nesting
+        else if mode = 3 then
+          if Char.equal character '\\' then loop (min (cursor + 2) end_) nesting
+          else if starts_with_at source cursor "$((" then
+            loop
+              (scan_shell_expansion_region ~start:(cursor + 3) ~end_ ~mode:3 ~depth:2)
+              nesting
+          else if starts_with_at source cursor "$(" then
+            loop
+              (scan_shell_expansion_region ~start:(cursor + 2) ~end_ ~mode:0 ~depth:1)
+              nesting
+          else if Char.equal character '`' then
+            loop
+              (scan_shell_expansion_region ~start:(cursor + 1) ~end_ ~mode:0 ~depth:(-1))
+              nesting
+          else if Char.equal character '"' then
+            loop
+              (scan_shell_expansion_region ~start:(cursor + 1) ~end_ ~mode:1 ~depth:0)
+              nesting
+          else if Char.equal character '\'' then loop (skip_single_quote (cursor + 1)) nesting
+          else if Char.equal character '(' then loop (cursor + 1) (nesting + 1)
+          else if Char.equal character ')' then
+            if nesting = 1 then cursor + 1 else loop (cursor + 1) (nesting - 1)
+          else loop (cursor + 1) nesting
+        else if Char.equal character '\\' then loop (min (cursor + 2) end_) nesting
+        else if depth = -1 && Char.equal character '`' then cursor + 1
+        else if Char.equal character '\'' then loop (skip_single_quote (cursor + 1)) nesting
+        else if Char.equal character '"' then
+          loop
+            (scan_shell_expansion_region ~start:(cursor + 1) ~end_ ~mode:1 ~depth:0)
+            nesting
+        else if starts_with_at source cursor "$((" then
+          loop
+            (scan_shell_expansion_region ~start:(cursor + 3) ~end_ ~mode:3 ~depth:2)
+            nesting
+        else if starts_with_at source cursor "$(" then
+          loop
+            (scan_shell_expansion_region ~start:(cursor + 2) ~end_ ~mode:0 ~depth:1)
+            nesting
+        else if starts_with_at source cursor "${" then
+          loop
+            (scan_shell_expansion_region ~start:(cursor + 2) ~end_ ~mode:2 ~depth:1)
+            nesting
+        else if Char.equal character '`' then
+          loop
+            (scan_shell_expansion_region ~start:(cursor + 1) ~end_ ~mode:0 ~depth:(-1))
+            nesting
+        else if Char.equal character '#' && comment_start cursor then
+          let comment_end = bounded_line_end (cursor + 1) in
+          shell_expansion_names :=
+            List.rev_append
+              (names_in_comment (String.sub source (cursor + 1) (comment_end - cursor - 1)))
+              !shell_expansion_names;
+          loop comment_end nesting
+        else if depth > 0 && Char.equal character '(' then loop (cursor + 1) (nesting + 1)
+        else if depth > 0 && Char.equal character ')' then
+          if nesting = 1 then cursor + 1 else loop (cursor + 1) (nesting - 1)
+        else loop (cursor + 1) nesting
+    in
+    loop start depth
   in
   let skip_shell_heredoc_bodies index heredocs =
     let cursor = ref (next_line_start index) in
     List.iter
-      (fun (delimiter, strip_tabs) ->
+      (fun (delimiter, strip_tabs, quoted) ->
+        let body_start = !cursor in
         let found = ref false in
         while !cursor < length && not !found do
           let line_start = !cursor in
@@ -622,7 +775,12 @@ let extract_name_directive ~syntax source =
           if String.equal
                (String.sub source !comparison_start (line_end_ - !comparison_start))
                delimiter
-          then found := true
+          then (
+            if not quoted then
+              ignore
+                (scan_shell_expansion_region ~start:body_start ~end_:line_start
+                   ~mode:4 ~depth:0);
+            found := true)
         done)
       heredocs;
     !cursor
@@ -635,31 +793,7 @@ let extract_name_directive ~syntax source =
     | _ -> false
   in
   let skip_shell_arithmetic start =
-    let cursor = ref (start + 3) in
-    let depth = ref 2 in
-    while !cursor < length && !depth > 0 do
-      match source.[!cursor] with
-      | '\\' -> cursor := min (!cursor + 2) length
-      | ('"' | '\'') as quote ->
-          incr cursor;
-          let escaped = ref false in
-          let closed = ref false in
-          while !cursor < length && not !closed do
-            let character = source.[!cursor] in
-            incr cursor;
-            if !escaped then escaped := false
-            else if Char.equal character '\\' && Char.equal quote '"' then escaped := true
-            else if Char.equal character quote then closed := true
-          done
-      | '(' ->
-          incr depth;
-          incr cursor
-      | ')' ->
-          decr depth;
-          incr cursor
-      | _ -> incr cursor
-    done;
-    !cursor
+    scan_shell_expansion_region ~start:(start + 3) ~end_:length ~mode:3 ~depth:2
   in
   let rec block_end index depth =
     if index >= length then (index, depth)
@@ -675,6 +809,7 @@ let extract_name_directive ~syntax source =
   let shell_parameter_depth = ref 0 in
   let shell_parameter_command_depth = ref 0 in
   let shell_parameter_backtick = ref false in
+  let shell_command_backtick = ref false in
   let pending_shell_heredocs = ref [] in
   let shell_quoted_contexts = ref [] in
   let set_shell_quoted_context value =
@@ -820,14 +955,15 @@ let extract_name_directive ~syntax source =
           | '<' when is_shell && starts_with_at source index "<<"
                      && not (starts_with_at source index "<<<") -> (
               match shell_heredoc index with
-              | Some (delimiter, strip_tabs, next) ->
+              | Some (delimiter, strip_tabs, quoted, next) ->
                   pending_shell_heredocs :=
-                    !pending_shell_heredocs @ [ (delimiter, strip_tabs) ];
+                    !pending_shell_heredocs @ [ (delimiter, strip_tabs, quoted) ];
                   loop next names template_depths
               | None -> loop (index + 1) names template_depths)
           | '\\' when is_shell -> loop (min (index + 2) length) names template_depths
           | '`' when is_shell ->
               (* Backtick contents are executable shell, so keep scanning them. *)
+              shell_command_backtick := not !shell_command_backtick;
               loop (index + 1) names template_depths
           | '"' when is_shell ->
               shell_quoted_contexts := 0 :: !shell_quoted_contexts;
@@ -850,7 +986,9 @@ let extract_name_directive ~syntax source =
                         || (match !shell_quoted_contexts with
                            | context :: _ -> context <> 0
                            | [] -> false))
-                     && (not is_shell || is_shell_comment_start index) ->
+                     && (not is_shell || is_shell_comment_start index
+                        || (!shell_command_backtick && index > 0
+                           && Char.equal source.[index - 1] '`')) ->
               let end_ = line_end (index + 1) in
               loop end_ (add_comment (index + 1) end_ names) template_depths
           | '/' when is_javascript && starts_with_at source index "//" ->
@@ -865,7 +1003,7 @@ let extract_name_directive ~syntax source =
               loop next (add_comment (index + 2) end_ names) template_depths
           | _ -> loop (index + 1) names template_depths)
   in
-  match loop 0 [] [] with
+  match List.rev_append !shell_expansion_names (loop 0 [] []) with
   | [ name ] -> name
   | [] -> failwith "no valid @name <identifier> directive was found in a comment"
   | _ ->

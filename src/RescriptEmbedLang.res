@@ -384,7 +384,8 @@ module GeneratedName = {
     let shellParameterDepth = ref(0)
     let shellParameterCommandDepth = ref(0)
     let shellParameterBacktick = ref(false)
-    let pendingShellHeredocs: ref<array<(string, bool)>> = ref([])
+    let shellCommandBacktick = ref(false)
+    let pendingShellHeredocs: ref<array<(string, bool, bool)>> = ref([])
     let shellQuotedContexts: array<int> = []
     let shellQuotedContextCount = ref(0)
     let parseShellHeredoc = start => {
@@ -402,6 +403,7 @@ module GeneratedName = {
       }
       let delimiter = ref("")
       let consumed = ref(false)
+      let quoted = ref(false)
       let valid = ref(true)
       let atDelimiterEnd = character =>
         switch character {
@@ -412,6 +414,7 @@ module GeneratedName = {
         consumed := true
         let character = source->String.charAt(cursor.contents)
         if character === "\\" {
+          quoted := true
           if cursor.contents + 1 < length {
             delimiter := delimiter.contents ++ source->String.charAt(cursor.contents + 1)
             cursor := cursor.contents + 2
@@ -419,6 +422,7 @@ module GeneratedName = {
             valid := false
           }
         } else if character === "\"" || character === "'" {
+          quoted := true
           let quote = character
           cursor := cursor.contents + 1
           let closed = ref(false)
@@ -452,7 +456,7 @@ module GeneratedName = {
         }
       }
       if consumed.contents && valid.contents {
-        Some((delimiter.contents, stripTabs, cursor.contents))
+        Some((delimiter.contents, stripTabs, quoted.contents, cursor.contents))
       } else {
         None
       }
@@ -465,9 +469,156 @@ module GeneratedName = {
       } else {
         lineEnd
       }
+    // Modes: 0 executable command, 1 double-quoted text, 2 parameter text,
+    // 3 arithmetic text, and 4 expanding heredoc text.
+    let rec scanShellExpansionRegion = (~start, ~end_, ~mode, ~depth) => {
+      let cursor = ref(start)
+      let nesting = ref(depth)
+      let closed = ref(false)
+      let isCommentStart = index =>
+        index === start ||
+        index === 0 ||
+        switch source->String.charAt(index - 1) {
+        | " " | "\t" | "\r" | "\n" | ";" | "&" | "|" | "(" | ")" => true
+        | _ => false
+        }
+      let skipSingleQuote = start => {
+        let next = ref(start + 1)
+        while next.contents < end_ && source->String.charAt(next.contents) !== "'" {
+          next := next.contents + 1
+        }
+        if next.contents < end_ { next.contents + 1 } else { next.contents }
+      }
+      while cursor.contents < end_ && !closed.contents {
+        let character = source->String.charAt(cursor.contents)
+        if mode === 4 {
+          if character === "\\" {
+            cursor := if cursor.contents + 2 < end_ { cursor.contents + 2 } else { end_ }
+          } else if source->String.slice(~start=cursor.contents, ~end=cursor.contents + 3) === "$((" {
+            cursor := scanShellExpansionRegion(~start=cursor.contents + 3, ~end_, ~mode=3, ~depth=2)
+          } else if character === "$" && source->String.charAt(cursor.contents + 1) === "(" {
+            cursor := scanShellExpansionRegion(~start=cursor.contents + 2, ~end_, ~mode=0, ~depth=1)
+          } else if character === "$" && source->String.charAt(cursor.contents + 1) === "{" {
+            cursor := scanShellExpansionRegion(~start=cursor.contents + 2, ~end_, ~mode=2, ~depth=1)
+          } else if character === "`" {
+            cursor := scanShellExpansionRegion(~start=cursor.contents + 1, ~end_, ~mode=0, ~depth=-1)
+          } else {
+            cursor := cursor.contents + 1
+          }
+        } else if mode === 1 {
+          if character === "\\" {
+            cursor := if cursor.contents + 2 < end_ { cursor.contents + 2 } else { end_ }
+          } else if character === "\"" {
+            cursor := cursor.contents + 1
+            closed := true
+          } else if source->String.slice(~start=cursor.contents, ~end=cursor.contents + 3) === "$((" {
+            cursor := scanShellExpansionRegion(~start=cursor.contents + 3, ~end_, ~mode=3, ~depth=2)
+          } else if character === "$" && source->String.charAt(cursor.contents + 1) === "(" {
+            cursor := scanShellExpansionRegion(~start=cursor.contents + 2, ~end_, ~mode=0, ~depth=1)
+          } else if character === "$" && source->String.charAt(cursor.contents + 1) === "{" {
+            cursor := scanShellExpansionRegion(~start=cursor.contents + 2, ~end_, ~mode=2, ~depth=1)
+          } else if character === "`" {
+            cursor := scanShellExpansionRegion(~start=cursor.contents + 1, ~end_, ~mode=0, ~depth=-1)
+          } else {
+            cursor := cursor.contents + 1
+          }
+        } else if mode === 2 {
+          if character === "\\" {
+            cursor := if cursor.contents + 2 < end_ { cursor.contents + 2 } else { end_ }
+          } else if source->String.slice(~start=cursor.contents, ~end=cursor.contents + 3) === "$((" {
+            cursor := scanShellExpansionRegion(~start=cursor.contents + 3, ~end_, ~mode=3, ~depth=2)
+          } else if character === "$" && source->String.charAt(cursor.contents + 1) === "(" {
+            cursor := scanShellExpansionRegion(~start=cursor.contents + 2, ~end_, ~mode=0, ~depth=1)
+          } else if character === "$" && source->String.charAt(cursor.contents + 1) === "{" {
+            nesting := nesting.contents + 1
+            cursor := cursor.contents + 2
+          } else if character === "`" {
+            cursor := scanShellExpansionRegion(~start=cursor.contents + 1, ~end_, ~mode=0, ~depth=-1)
+          } else if character === "\"" {
+            cursor := scanShellExpansionRegion(~start=cursor.contents + 1, ~end_, ~mode=1, ~depth=0)
+          } else if character === "}" {
+            nesting := nesting.contents - 1
+            cursor := cursor.contents + 1
+            if nesting.contents === 0 {
+              closed := true
+            }
+          } else {
+            cursor := cursor.contents + 1
+          }
+        } else if mode === 3 {
+          if character === "\\" {
+            cursor := if cursor.contents + 2 < end_ { cursor.contents + 2 } else { end_ }
+          } else if source->String.slice(~start=cursor.contents, ~end=cursor.contents + 3) === "$((" {
+            cursor := scanShellExpansionRegion(~start=cursor.contents + 3, ~end_, ~mode=3, ~depth=2)
+          } else if character === "$" && source->String.charAt(cursor.contents + 1) === "(" {
+            cursor := scanShellExpansionRegion(~start=cursor.contents + 2, ~end_, ~mode=0, ~depth=1)
+          } else if character === "`" {
+            cursor := scanShellExpansionRegion(~start=cursor.contents + 1, ~end_, ~mode=0, ~depth=-1)
+          } else if character === "\"" {
+            cursor := scanShellExpansionRegion(~start=cursor.contents + 1, ~end_, ~mode=1, ~depth=0)
+          } else if character === "'" {
+            cursor := skipSingleQuote(cursor.contents)
+          } else {
+            if character === "(" {
+              nesting := nesting.contents + 1
+            } else if character === ")" {
+              nesting := nesting.contents - 1
+            }
+            cursor := cursor.contents + 1
+            if nesting.contents === 0 {
+              closed := true
+            }
+          }
+        } else if character === "\\" {
+          cursor := if cursor.contents + 2 < end_ { cursor.contents + 2 } else { end_ }
+        } else if depth === -1 && character === "`" {
+          cursor := cursor.contents + 1
+          closed := true
+        } else if character === "'" {
+          cursor := skipSingleQuote(cursor.contents)
+        } else if character === "\"" {
+          cursor := scanShellExpansionRegion(~start=cursor.contents + 1, ~end_, ~mode=1, ~depth=0)
+        } else if source->String.slice(~start=cursor.contents, ~end=cursor.contents + 3) === "$((" {
+          cursor := scanShellExpansionRegion(~start=cursor.contents + 3, ~end_, ~mode=3, ~depth=2)
+        } else if character === "$" && source->String.charAt(cursor.contents + 1) === "(" {
+          cursor := scanShellExpansionRegion(~start=cursor.contents + 2, ~end_, ~mode=0, ~depth=1)
+        } else if character === "$" && source->String.charAt(cursor.contents + 1) === "{" {
+          cursor := scanShellExpansionRegion(~start=cursor.contents + 2, ~end_, ~mode=2, ~depth=1)
+        } else if character === "`" {
+          cursor := scanShellExpansionRegion(~start=cursor.contents + 1, ~end_, ~mode=0, ~depth=-1)
+        } else if character === "#" && isCommentStart(cursor.contents) {
+          let commentEnd = ref(cursor.contents + 1)
+          while (
+            commentEnd.contents < end_ &&
+            source->String.charAt(commentEnd.contents) !== "\n" &&
+            source->String.charAt(commentEnd.contents) !== "\r"
+          ) {
+            commentEnd := commentEnd.contents + 1
+          }
+          namesInComment(source->String.slice(~start=cursor.contents + 1, ~end=commentEnd.contents))->Array.forEach(name =>
+            names->Array.push(name)
+          )
+          cursor := commentEnd.contents
+        } else {
+          if depth > 0 {
+            if character === "(" {
+              nesting := nesting.contents + 1
+            } else if character === ")" {
+              nesting := nesting.contents - 1
+            }
+          }
+          cursor := cursor.contents + 1
+          if depth > 0 && nesting.contents === 0 {
+            closed := true
+          }
+        }
+      }
+      cursor.contents
+    }
     let skipShellHeredocBodies = start => {
       let cursor = ref(nextLineStart(start))
-      pendingShellHeredocs.contents->Array.forEach(((delimiter, stripTabs)) => {
+      pendingShellHeredocs.contents->Array.forEach(((delimiter, stripTabs, quoted)) => {
+        let bodyStart = cursor.contents
         let found = ref(false)
         while cursor.contents < length && !found.contents {
           let lineStart = cursor.contents
@@ -489,6 +640,9 @@ module GeneratedName = {
           if (
             source->String.slice(~start=comparisonStart.contents, ~end=lineEnd.contents) === delimiter
           ) {
+            if !quoted {
+              scanShellExpansionRegion(~start=bodyStart, ~end_=lineStart, ~mode=4, ~depth=0)->ignore
+            }
             found := true
           }
         }
@@ -501,40 +655,8 @@ module GeneratedName = {
       | " " | "\t" | "\r" | "\n" | ";" | "&" | "|" | "(" | ")" => true
       | _ => false
       }
-    let skipShellArithmetic = start => {
-      let cursor = ref(start + 3)
-      let depth = ref(2)
-      while cursor.contents < length && depth.contents > 0 {
-        let character = source->String.charAt(cursor.contents)
-        if character === "\\" {
-          cursor := if cursor.contents + 2 < length { cursor.contents + 2 } else { length }
-        } else if character === "\"" || character === "'" {
-          let quote = character
-          cursor := cursor.contents + 1
-          let escaped = ref(false)
-          let closed = ref(false)
-          while cursor.contents < length && !closed.contents {
-            let quotedCharacter = source->String.charAt(cursor.contents)
-            cursor := cursor.contents + 1
-            if escaped.contents {
-              escaped := false
-            } else if quotedCharacter === "\\" && quote === "\"" {
-              escaped := true
-            } else if quotedCharacter === quote {
-              closed := true
-            }
-          }
-        } else {
-          if character === "(" {
-            depth := depth.contents + 1
-          } else if character === ")" {
-            depth := depth.contents - 1
-          }
-          cursor := cursor.contents + 1
-        }
-      }
-      cursor.contents
-    }
+    let skipShellArithmetic = start =>
+      scanShellExpansionRegion(~start=start + 3, ~end_=length, ~mode=3, ~depth=2)
     while index.contents < length {
       let character = source->String.charAt(index.contents)
       let templateDepth = if templateCount.contents > 0 {
@@ -790,8 +912,8 @@ module GeneratedName = {
           source->String.charAt(index.contents + 2) !== "<"
         ) {
           switch parseShellHeredoc(index.contents) {
-          | Some((delimiter, stripTabs, next)) =>
-            pendingShellHeredocs.contents->Array.push((delimiter, stripTabs))
+          | Some((delimiter, stripTabs, quoted, next)) =>
+            pendingShellHeredocs.contents->Array.push((delimiter, stripTabs, quoted))
             index := next
           | None => index := index.contents + 1
           }
@@ -803,6 +925,7 @@ module GeneratedName = {
             }
         } else if isShell && character === "`" {
           // Backtick contents are executable shell, so keep scanning them for comments.
+          shellCommandBacktick := !shellCommandBacktick.contents
           index := index.contents + 1
         } else if isShell && character === "\"" {
           shellQuotedContexts[shellQuotedContextCount.contents] = 0
@@ -849,7 +972,10 @@ module GeneratedName = {
               | None => false
               }) &&
             character === "#" &&
-            (!isShell || isShellCommentStart(index.contents))) ||
+            (!isShell ||
+              isShellCommentStart(index.contents) ||
+              (shellCommandBacktick.contents &&
+                source->String.charAt(index.contents - 1) === "`"))) ||
             isJavaScript &&
             character === "/" &&
             source->String.charAt(index.contents + 1) === "/" ||

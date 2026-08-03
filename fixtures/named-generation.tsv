@@ -80,3 +80,7 @@ shell quoted heredoc preserved backslash	nameDirectiveShell						cat <<\"E\\OF\"
 shell parameter dollar substitution	nameDirectiveShell						value=${fallback:-$(echo start\n# @name parameterDollar\n)}	name	parameterDollar
 shell parameter backtick substitution	nameDirectiveShell						value=${fallback:-`echo start\n# @name parameterBacktick\n`}	name	parameterBacktick
 shell parameter quoted substitution	nameDirectiveShell						value=${fallback:-\"$(echo start\n# @name parameterQuoted\n)\"}	name	parameterQuoted
+shell expanding heredoc substitution	nameDirectiveShell						cat <<EOF\n$(echo start\n# @name expandingHeredoc\n)\nEOF	name	expandingHeredoc
+shell quoted heredoc ignores substitution	nameDirectiveShell						cat <<\"EOF\"\n$(echo start\n# @name fakeQuotedHeredoc\n)\nEOF\n# @name realQuotedHeredoc	name	realQuotedHeredoc
+shell arithmetic command substitution	nameDirectiveShell						value=$(( $(echo 1\n# @name arithmeticCommand\n) + 1 ))	name	arithmeticCommand
+shell inline backtick comment	nameDirectiveShell						value=`# @name inlineBacktick\n`	name	inlineBacktick
