@@ -383,6 +383,8 @@ module GeneratedName = {
     let templateCount = ref(0)
     let shellParameterDepth = ref(0)
     let pendingShellHeredocs: ref<array<(string, bool)>> = ref([])
+    let shellQuotedContexts: array<int> = []
+    let shellQuotedContextCount = ref(0)
     let parseShellHeredoc = start => {
       let cursor = ref(start + 2)
       let stripTabs = source->String.charAt(cursor.contents) === "-"
@@ -396,42 +398,53 @@ module GeneratedName = {
       ) {
         cursor := cursor.contents + 1
       }
-      let quote = source->String.charAt(cursor.contents)
-      if quote === "\"" || quote === "'" {
-        let delimiterStart = cursor.contents + 1
-        cursor := delimiterStart
-        while cursor.contents < length && source->String.charAt(cursor.contents) !== quote {
-          cursor := cursor.contents + 1
+      let delimiter = ref("")
+      let consumed = ref(false)
+      let valid = ref(true)
+      let atDelimiterEnd = character =>
+        switch character {
+        | " " | "\t" | "\r" | "\n" | ";" | "&" | "|" | "<" | ">" | "(" | ")" => true
+        | _ => false
         }
-        if cursor.contents < length {
-          Some((
-            source->String.slice(~start=delimiterStart, ~end=cursor.contents),
-            stripTabs,
-            cursor.contents + 1,
-          ))
-        } else {
-          None
-        }
-      } else {
-        let delimiterStart = cursor.contents
-        while (
-          cursor.contents < length &&
-          switch source->String.charAt(cursor.contents) {
-          | " " | "\t" | "\r" | "\n" | ";" | "&" | "|" | "<" | ">" | "(" | ")" => false
-          | _ => true
+      while cursor.contents < length && valid.contents && !atDelimiterEnd(source->String.charAt(cursor.contents)) {
+        consumed := true
+        let character = source->String.charAt(cursor.contents)
+        if character === "\\" {
+          if cursor.contents + 1 < length {
+            delimiter := delimiter.contents ++ source->String.charAt(cursor.contents + 1)
+            cursor := cursor.contents + 2
+          } else {
+            valid := false
           }
-        ) {
+        } else if character === "\"" || character === "'" {
+          let quote = character
+          cursor := cursor.contents + 1
+          let closed = ref(false)
+          while cursor.contents < length && !closed.contents {
+            let quotedCharacter = source->String.charAt(cursor.contents)
+            if quotedCharacter === quote {
+              closed := true
+              cursor := cursor.contents + 1
+            } else if quote === "\"" && quotedCharacter === "\\" && cursor.contents + 1 < length {
+              delimiter := delimiter.contents ++ source->String.charAt(cursor.contents + 1)
+              cursor := cursor.contents + 2
+            } else {
+              delimiter := delimiter.contents ++ quotedCharacter
+              cursor := cursor.contents + 1
+            }
+          }
+          if !closed.contents {
+            valid := false
+          }
+        } else {
+          delimiter := delimiter.contents ++ character
           cursor := cursor.contents + 1
         }
-        if cursor.contents > delimiterStart {
-          Some((
-            source->String.slice(~start=delimiterStart, ~end=cursor.contents),
-            stripTabs,
-            cursor.contents,
-          ))
-        } else {
-          None
-        }
+      }
+      if consumed.contents && valid.contents {
+        Some((delimiter.contents, stripTabs, cursor.contents))
+      } else {
+        None
       }
     }
     let nextLineStart = lineEnd =>
@@ -478,10 +491,49 @@ module GeneratedName = {
       | " " | "\t" | "\r" | "\n" | ";" | "&" | "|" | "(" | ")" => true
       | _ => false
       }
+    let skipShellArithmetic = start => {
+      let cursor = ref(start + 3)
+      let depth = ref(2)
+      while cursor.contents < length && depth.contents > 0 {
+        let character = source->String.charAt(cursor.contents)
+        if character === "\\" {
+          cursor := if cursor.contents + 2 < length { cursor.contents + 2 } else { length }
+        } else if character === "\"" || character === "'" {
+          let quote = character
+          cursor := cursor.contents + 1
+          let escaped = ref(false)
+          let closed = ref(false)
+          while cursor.contents < length && !closed.contents {
+            let quotedCharacter = source->String.charAt(cursor.contents)
+            cursor := cursor.contents + 1
+            if escaped.contents {
+              escaped := false
+            } else if quotedCharacter === "\\" && quote === "\"" {
+              escaped := true
+            } else if quotedCharacter === quote {
+              closed := true
+            }
+          }
+        } else {
+          if character === "(" {
+            depth := depth.contents + 1
+          } else if character === ")" {
+            depth := depth.contents - 1
+          }
+          cursor := cursor.contents + 1
+        }
+      }
+      cursor.contents
+    }
     while index.contents < length {
       let character = source->String.charAt(index.contents)
       let templateDepth = if templateCount.contents > 0 {
         templateDepths[templateCount.contents - 1]
+      } else {
+        None
+      }
+      let shellQuotedContext = if shellQuotedContextCount.contents > 0 {
+        shellQuotedContexts[shellQuotedContextCount.contents - 1]
       } else {
         None
       }
@@ -492,6 +544,43 @@ module GeneratedName = {
           (character === "\n" || character === "\r") =>
         index := skipShellHeredocBodies(index.contents)
         pendingShellHeredocs := []
+      | _ if isShell && shellQuotedContext === Some(0) =>
+        if character === "\\" {
+          index := if index.contents + 2 < length {
+              index.contents + 2
+            } else {
+              length
+            }
+        } else if character === "\"" {
+          shellQuotedContextCount := shellQuotedContextCount.contents - 1
+          index := index.contents + 1
+        } else if character === "`" {
+          shellQuotedContexts[shellQuotedContextCount.contents - 1] = -1
+          index := index.contents + 1
+        } else if source->String.slice(~start=index.contents, ~end=index.contents + 3) === "$((" {
+          index := skipShellArithmetic(index.contents)
+        } else if character === "$" && source->String.charAt(index.contents + 1) === "(" {
+          shellQuotedContexts[shellQuotedContextCount.contents - 1] = 1
+          index := index.contents + 2
+        } else {
+          index := index.contents + 1
+        }
+      | _ if isShell && shellQuotedContext === Some(-1) && character === "\\" =>
+        index := if index.contents + 2 < length {
+            index.contents + 2
+          } else {
+            length
+          }
+      | _ if isShell && shellQuotedContext === Some(-1) && character === "`" =>
+        shellQuotedContexts[shellQuotedContextCount.contents - 1] = 0
+        index := index.contents + 1
+      | _ if isShell && switch shellQuotedContext { | Some(depth) => depth > 0 | None => false } && character === "(" =>
+        shellQuotedContexts[shellQuotedContextCount.contents - 1] = shellQuotedContext->Option.getOr(0) + 1
+        index := index.contents + 1
+      | _ if isShell && switch shellQuotedContext { | Some(depth) => depth > 0 | None => false } && character === ")" =>
+        let depth = shellQuotedContext->Option.getOr(0)
+        shellQuotedContexts[shellQuotedContextCount.contents - 1] = if depth === 1 { 0 } else { depth - 1 }
+        index := index.contents + 1
       | _ if isShell && character === "$" && source->String.charAt(index.contents + 1) === "{" =>
         shellParameterDepth := shellParameterDepth.contents + 1
         index := index.contents + 2
@@ -622,6 +711,11 @@ module GeneratedName = {
           }
         } else if (
           isShell &&
+          source->String.slice(~start=index.contents, ~end=index.contents + 3) === "$(("
+        ) {
+          index := skipShellArithmetic(index.contents)
+        } else if (
+          isShell &&
           character === "<" &&
           source->String.charAt(index.contents + 1) === "<" &&
           source->String.charAt(index.contents + 2) !== "<"
@@ -640,6 +734,10 @@ module GeneratedName = {
             }
         } else if isShell && character === "`" {
           // Backtick contents are executable shell, so keep scanning them for comments.
+          index := index.contents + 1
+        } else if isShell && character === "\"" {
+          shellQuotedContexts[shellQuotedContextCount.contents] = 0
+          shellQuotedContextCount := shellQuotedContextCount.contents + 1
           index := index.contents + 1
         } else if character === "\"" || character === "'" {
           let quote = character

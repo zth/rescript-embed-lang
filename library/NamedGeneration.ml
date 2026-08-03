@@ -559,36 +559,44 @@ let extract_name_directive ~syntax source =
     while !cursor < length && (Char.equal source.[!cursor] ' ' || Char.equal source.[!cursor] '\t') do
       incr cursor
     done;
-    if !cursor >= length then None
-    else
+    let delimiter = Buffer.create 16 in
+    let consumed = ref false in
+    let valid = ref true in
+    let is_delimiter_end = function
+      | ' ' | '\t' | '\r' | '\n' | ';' | '&' | '|' | '<' | '>' | '(' | ')' -> true
+      | _ -> false
+    in
+    while !cursor < length && !valid && not (is_delimiter_end source.[!cursor]) do
+      consumed := true;
       match source.[!cursor] with
+      | '\\' ->
+          if !cursor + 1 < length then (
+            Buffer.add_char delimiter source.[!cursor + 1];
+            cursor := !cursor + 2)
+          else valid := false
       | ('"' | '\'') as quote ->
-          let delimiter_start = !cursor + 1 in
-          cursor := delimiter_start;
-          while !cursor < length && not (Char.equal source.[!cursor] quote) do
-            incr cursor
+          incr cursor;
+          let closed = ref false in
+          while !cursor < length && not !closed do
+            if Char.equal source.[!cursor] quote then (
+              closed := true;
+              incr cursor)
+            else if Char.equal quote '"' && Char.equal source.[!cursor] '\\'
+                    && !cursor + 1 < length
+            then (
+              Buffer.add_char delimiter source.[!cursor + 1];
+              cursor := !cursor + 2)
+            else (
+              Buffer.add_char delimiter source.[!cursor];
+              incr cursor)
           done;
-          if !cursor < length then
-            Some
-              ( String.sub source delimiter_start (!cursor - delimiter_start),
-                strip_tabs,
-                !cursor + 1 )
-          else None
-      | _ ->
-          let delimiter_start = !cursor in
-          let is_delimiter_end = function
-            | ' ' | '\t' | '\r' | '\n' | ';' | '&' | '|' | '<' | '>' | '(' | ')' -> true
-            | _ -> false
-          in
-          while !cursor < length && not (is_delimiter_end source.[!cursor]) do
-            incr cursor
-          done;
-          if !cursor > delimiter_start then
-            Some
-              ( String.sub source delimiter_start (!cursor - delimiter_start),
-                strip_tabs,
-                !cursor )
-          else None
+          if not !closed then valid := false
+      | character ->
+          Buffer.add_char delimiter character;
+          incr cursor
+    done;
+    if !consumed && !valid then Some (Buffer.contents delimiter, strip_tabs, !cursor)
+    else None
   in
   let skip_shell_heredoc_bodies index heredocs =
     let cursor = ref (next_line_start index) in
@@ -621,6 +629,33 @@ let extract_name_directive ~syntax source =
     | ' ' | '\t' | '\r' | '\n' | ';' | '&' | '|' | '(' | ')' -> true
     | _ -> false
   in
+  let skip_shell_arithmetic start =
+    let cursor = ref (start + 3) in
+    let depth = ref 2 in
+    while !cursor < length && !depth > 0 do
+      match source.[!cursor] with
+      | '\\' -> cursor := min (!cursor + 2) length
+      | ('"' | '\'') as quote ->
+          incr cursor;
+          let escaped = ref false in
+          let closed = ref false in
+          while !cursor < length && not !closed do
+            let character = source.[!cursor] in
+            incr cursor;
+            if !escaped then escaped := false
+            else if Char.equal character '\\' && Char.equal quote '"' then escaped := true
+            else if Char.equal character quote then closed := true
+          done
+      | '(' ->
+          incr depth;
+          incr cursor
+      | ')' ->
+          decr depth;
+          incr cursor
+      | _ -> incr cursor
+    done;
+    !cursor
+  in
   let rec block_end index depth =
     if index >= length then (index, depth)
     else if is_postgresql && starts_with_at source index "/*" then
@@ -634,6 +669,12 @@ let extract_name_directive ~syntax source =
   in
   let shell_parameter_depth = ref 0 in
   let pending_shell_heredocs = ref [] in
+  let shell_quoted_contexts = ref [] in
+  let set_shell_quoted_context value =
+    match !shell_quoted_contexts with
+    | _ :: rest -> shell_quoted_contexts := value :: rest
+    | [] -> ()
+  in
   let rec loop index names template_depths =
     if index >= length then List.rev names
     else if is_shell && !pending_shell_heredocs <> []
@@ -642,6 +683,45 @@ let extract_name_directive ~syntax source =
       let next = skip_shell_heredoc_bodies index !pending_shell_heredocs in
       pending_shell_heredocs := [];
       loop next names template_depths
+    else if is_shell && (match !shell_quoted_contexts with 0 :: _ -> true | _ -> false)
+    then
+      match source.[index] with
+      | '\\' -> loop (min (index + 2) length) names template_depths
+      | '"' ->
+          shell_quoted_contexts := List.tl !shell_quoted_contexts;
+          loop (index + 1) names template_depths
+      | '`' ->
+          set_shell_quoted_context (-1);
+          loop (index + 1) names template_depths
+      | '$' when starts_with_at source index "$((" ->
+          loop (skip_shell_arithmetic index) names template_depths
+      | '$' when starts_with_at source index "$(" ->
+          set_shell_quoted_context 1;
+          loop (index + 2) names template_depths
+      | _ -> loop (index + 1) names template_depths
+    else if is_shell && (match !shell_quoted_contexts with -1 :: _ -> true | _ -> false)
+            && Char.equal source.[index] '\\'
+    then loop (min (index + 2) length) names template_depths
+    else if is_shell && (match !shell_quoted_contexts with -1 :: _ -> true | _ -> false)
+            && Char.equal source.[index] '`'
+    then (
+      set_shell_quoted_context 0;
+      loop (index + 1) names template_depths)
+    else if is_shell && (match !shell_quoted_contexts with depth :: _ -> depth > 0 | _ -> false)
+            && Char.equal source.[index] '('
+    then (
+      (match !shell_quoted_contexts with
+      | depth :: _ -> set_shell_quoted_context (depth + 1)
+      | [] -> ());
+      loop (index + 1) names template_depths)
+    else if is_shell && (match !shell_quoted_contexts with depth :: _ -> depth > 0 | _ -> false)
+            && Char.equal source.[index] ')'
+    then (
+      (match !shell_quoted_contexts with
+      | 1 :: _ -> set_shell_quoted_context 0
+      | depth :: _ -> set_shell_quoted_context (depth - 1)
+      | [] -> ());
+      loop (index + 1) names template_depths)
     else if is_shell && starts_with_at source index "${" then (
       incr shell_parameter_depth;
       loop (index + 2) names template_depths)
@@ -687,6 +767,8 @@ let extract_name_directive ~syntax source =
               loop
                 (skip_triple_quoted (index + 3) delimiter false)
                 names template_depths
+          | '$' when is_shell && starts_with_at source index "$((" ->
+              loop (skip_shell_arithmetic index) names template_depths
           | '<' when is_shell && starts_with_at source index "<<"
                      && not (starts_with_at source index "<<<") -> (
               match shell_heredoc index with
@@ -698,6 +780,9 @@ let extract_name_directive ~syntax source =
           | '\\' when is_shell -> loop (min (index + 2) length) names template_depths
           | '`' when is_shell ->
               (* Backtick contents are executable shell, so keep scanning them. *)
+              loop (index + 1) names template_depths
+          | '"' when is_shell ->
+              shell_quoted_contexts := 0 :: !shell_quoted_contexts;
               loop (index + 1) names template_depths
           | (('"' | '\'') as quote) ->
               let backslash_escapes =

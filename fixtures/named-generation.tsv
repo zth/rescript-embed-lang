@@ -69,3 +69,10 @@ shell multiple heredoc bodies	nameDirectiveShell						cat <<A <<-B\n# @name firs
 shell backtick substitution comment	nameDirectiveShell						value=`echo start\n# @name embeddedBacktick\n`	name	embeddedBacktick
 shell escaped hash	nameDirectiveShell						echo \\# @name fake\n# @name realEscapedHash	name	realEscapedHash
 shell hash inside word	nameDirectiveShell						echo value#notacomment @name fake\n# @name realHashWord	name	realHashWord
+shell quoted backtick substitution	nameDirectiveShell						value=\"`echo start\n# @name quotedBacktick\n`\"	name	quotedBacktick
+shell quoted dollar substitution	nameDirectiveShell						value=\"$(echo start\n# @name quotedDollar\n)\"	name	quotedDollar
+shell nested quote in dollar substitution	nameDirectiveShell						value=\"$(printf \"%s\" value\n# @name nestedQuotedDollar\n)\"	name	nestedQuotedDollar
+shell literal double quote	nameDirectiveShell						value=\"# @name fake\"\n# @name realDoubleQuote	name	realDoubleQuote
+shell escaped heredoc delimiter	nameDirectiveShell						cat <<\\EOF\n# @name fakeEscapedDelimiter\nEOF\n# @name realEscapedDelimiter	name	realEscapedDelimiter
+shell mixed quoted heredoc delimiter	nameDirectiveShell						cat <<E\"OF\"\n# @name fakeMixedDelimiter\nEOF\n# @name realMixedDelimiter	name	realMixedDelimiter
+shell arithmetic shift	nameDirectiveShell						value=$((1 << 2))\n# @name realArithmeticShift	name	realArithmeticShift
