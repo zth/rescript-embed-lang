@@ -50,7 +50,7 @@ jobs:
           dune-cache: true
           cache-prefix: "v3-ocaml5-musl-bullseye"
       - name: Install dependencies
-        run: opam install . --deps-only
+        run: opam install . --deps-only --with-test
       - name: Build PPX
         run: |
           opam exec -- dune build --profile release-static bin/RescriptEmbedLang.exe
@@ -83,7 +83,7 @@ jobs:
           dune-cache: true
           cache-prefix: "v1-compat"
       - name: Install dependencies
-        run: opam install . --deps-only
+        run: opam install . --deps-only --with-test
       - name: Build PPX
         run: opam exec -- dune build @runtest bin/RescriptEmbedLang.exe
 
@@ -114,7 +114,7 @@ jobs:
           dune-cache: true
           cache-prefix: "v2-ocaml5"
       - name: Install dependencies
-        run: opam install . --deps-only
+        run: opam install . --deps-only --with-test
       - name: Build PPX
         run: opam exec -- dune build @runtest bin/RescriptEmbedLang.exe
       - name: Strip PPX binary
