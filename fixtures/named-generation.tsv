@@ -76,3 +76,7 @@ shell literal double quote	nameDirectiveShell						value=\"# @name fake\"\n# @na
 shell escaped heredoc delimiter	nameDirectiveShell						cat <<\\EOF\n# @name fakeEscapedDelimiter\nEOF\n# @name realEscapedDelimiter	name	realEscapedDelimiter
 shell mixed quoted heredoc delimiter	nameDirectiveShell						cat <<E\"OF\"\n# @name fakeMixedDelimiter\nEOF\n# @name realMixedDelimiter	name	realMixedDelimiter
 shell arithmetic shift	nameDirectiveShell						value=$((1 << 2))\n# @name realArithmeticShift	name	realArithmeticShift
+shell quoted heredoc preserved backslash	nameDirectiveShell						cat <<\"E\\OF\"\n# @name firstFakePreserved\nEOF\n# @name secondFakePreserved\nE\\OF\n# @name realPreservedBackslash	name	realPreservedBackslash
+shell parameter dollar substitution	nameDirectiveShell						value=${fallback:-$(echo start\n# @name parameterDollar\n)}	name	parameterDollar
+shell parameter backtick substitution	nameDirectiveShell						value=${fallback:-`echo start\n# @name parameterBacktick\n`}	name	parameterBacktick
+shell parameter quoted substitution	nameDirectiveShell						value=${fallback:-\"$(echo start\n# @name parameterQuoted\n)\"}	name	parameterQuoted

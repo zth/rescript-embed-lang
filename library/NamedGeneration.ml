@@ -583,9 +583,14 @@ let extract_name_directive ~syntax source =
               incr cursor)
             else if Char.equal quote '"' && Char.equal source.[!cursor] '\\'
                     && !cursor + 1 < length
-            then (
-              Buffer.add_char delimiter source.[!cursor + 1];
-              cursor := !cursor + 2)
+            then
+              let next = source.[!cursor + 1] in
+              if List.mem next [ '$'; '`'; '"'; '\\'; '\n' ] then (
+                if not (Char.equal next '\n') then Buffer.add_char delimiter next;
+                cursor := !cursor + 2)
+              else (
+                Buffer.add_char delimiter '\\';
+                incr cursor)
             else (
               Buffer.add_char delimiter source.[!cursor];
               incr cursor)
@@ -668,6 +673,8 @@ let extract_name_directive ~syntax source =
     List.rev_append (names_in_comment (String.sub source start (end_ - start))) names
   in
   let shell_parameter_depth = ref 0 in
+  let shell_parameter_command_depth = ref 0 in
+  let shell_parameter_backtick = ref false in
   let pending_shell_heredocs = ref [] in
   let shell_quoted_contexts = ref [] in
   let set_shell_quoted_context value =
@@ -722,13 +729,54 @@ let extract_name_directive ~syntax source =
       | depth :: _ -> set_shell_quoted_context (depth - 1)
       | [] -> ());
       loop (index + 1) names template_depths)
-    else if is_shell && starts_with_at source index "${" then (
+    else if is_shell && !shell_parameter_depth > 0
+            && !shell_parameter_command_depth = 0
+            && not !shell_parameter_backtick
+            && starts_with_at source index "$("
+    then (
+      shell_parameter_command_depth := 1;
+      loop (index + 2) names template_depths)
+    else if is_shell && !shell_parameter_depth > 0
+            && !shell_parameter_command_depth > 0
+            && starts_with_at source index "$("
+    then (
+      incr shell_parameter_command_depth;
+      loop (index + 2) names template_depths)
+    else if is_shell && !shell_parameter_depth > 0
+            && !shell_parameter_command_depth > 0
+            && Char.equal source.[index] '('
+    then (
+      incr shell_parameter_command_depth;
+      loop (index + 1) names template_depths)
+    else if is_shell && !shell_parameter_depth > 0
+            && !shell_parameter_command_depth > 0
+            && Char.equal source.[index] ')'
+    then (
+      decr shell_parameter_command_depth;
+      loop (index + 1) names template_depths)
+    else if is_shell && !shell_parameter_depth > 0
+            && !shell_parameter_command_depth = 0
+            && Char.equal source.[index] '\\'
+    then loop (min (index + 2) length) names template_depths
+    else if is_shell && !shell_parameter_depth > 0
+            && !shell_parameter_command_depth = 0
+            && Char.equal source.[index] '`'
+    then (
+      shell_parameter_backtick := not !shell_parameter_backtick;
+      loop (index + 1) names template_depths)
+    else if is_shell && !shell_parameter_command_depth = 0
+            && not !shell_parameter_backtick
+            && starts_with_at source index "${" then (
       incr shell_parameter_depth;
       loop (index + 2) names template_depths)
-    else if is_shell && !shell_parameter_depth > 0 && Char.equal source.[index] '{' then (
+    else if is_shell && !shell_parameter_command_depth = 0
+            && not !shell_parameter_backtick
+            && !shell_parameter_depth > 0 && Char.equal source.[index] '{' then (
       incr shell_parameter_depth;
       loop (index + 1) names template_depths)
-    else if is_shell && !shell_parameter_depth > 0 && Char.equal source.[index] '}' then (
+    else if is_shell && !shell_parameter_command_depth = 0
+            && not !shell_parameter_backtick
+            && !shell_parameter_depth > 0 && Char.equal source.[index] '}' then (
       decr shell_parameter_depth;
       loop (index + 1) names template_depths)
     else
@@ -795,7 +843,13 @@ let extract_name_directive ~syntax source =
               loop
                 (skip_quoted (index + 1) quote ~backslash_escapes false)
                 names template_depths
-          | '#' when is_hash && !shell_parameter_depth = 0
+          | '#' when is_hash
+                     && (!shell_parameter_depth = 0
+                        || !shell_parameter_command_depth > 0
+                        || !shell_parameter_backtick
+                        || (match !shell_quoted_contexts with
+                           | context :: _ -> context <> 0
+                           | [] -> false))
                      && (not is_shell || is_shell_comment_start index) ->
               let end_ = line_end (index + 1) in
               loop end_ (add_comment (index + 1) end_ names) template_depths

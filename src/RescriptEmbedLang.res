@@ -382,6 +382,8 @@ module GeneratedName = {
     let templateDepths: array<int> = []
     let templateCount = ref(0)
     let shellParameterDepth = ref(0)
+    let shellParameterCommandDepth = ref(0)
+    let shellParameterBacktick = ref(false)
     let pendingShellHeredocs: ref<array<(string, bool)>> = ref([])
     let shellQuotedContexts: array<int> = []
     let shellQuotedContextCount = ref(0)
@@ -426,8 +428,16 @@ module GeneratedName = {
               closed := true
               cursor := cursor.contents + 1
             } else if quote === "\"" && quotedCharacter === "\\" && cursor.contents + 1 < length {
-              delimiter := delimiter.contents ++ source->String.charAt(cursor.contents + 1)
-              cursor := cursor.contents + 2
+              let next = source->String.charAt(cursor.contents + 1)
+              if ["$", "`", "\"", "\\", "\n"]->Array.includes(next) {
+                if next !== "\n" {
+                  delimiter := delimiter.contents ++ next
+                }
+                cursor := cursor.contents + 2
+              } else {
+                delimiter := delimiter.contents ++ "\\"
+                cursor := cursor.contents + 1
+              }
             } else {
               delimiter := delimiter.contents ++ quotedCharacter
               cursor := cursor.contents + 1
@@ -581,13 +591,72 @@ module GeneratedName = {
         let depth = shellQuotedContext->Option.getOr(0)
         shellQuotedContexts[shellQuotedContextCount.contents - 1] = if depth === 1 { 0 } else { depth - 1 }
         index := index.contents + 1
-      | _ if isShell && character === "$" && source->String.charAt(index.contents + 1) === "{" =>
+      | _ if
+          isShell &&
+          shellParameterDepth.contents > 0 &&
+          shellParameterCommandDepth.contents === 0 &&
+          !shellParameterBacktick.contents &&
+          character === "$" &&
+          source->String.charAt(index.contents + 1) === "(" =>
+        shellParameterCommandDepth := 1
+        index := index.contents + 2
+      | _ if
+          isShell &&
+          shellParameterDepth.contents > 0 &&
+          shellParameterCommandDepth.contents > 0 &&
+          character === "$" &&
+          source->String.charAt(index.contents + 1) === "(" =>
+        shellParameterCommandDepth := shellParameterCommandDepth.contents + 1
+        index := index.contents + 2
+      | _ if
+          isShell &&
+          shellParameterDepth.contents > 0 &&
+          shellParameterCommandDepth.contents > 0 &&
+          character === "(" =>
+        shellParameterCommandDepth := shellParameterCommandDepth.contents + 1
+        index := index.contents + 1
+      | _ if
+          isShell &&
+          shellParameterDepth.contents > 0 &&
+          shellParameterCommandDepth.contents > 0 &&
+          character === ")" =>
+        shellParameterCommandDepth := shellParameterCommandDepth.contents - 1
+        index := index.contents + 1
+      | _ if
+          isShell &&
+          shellParameterDepth.contents > 0 &&
+          shellParameterCommandDepth.contents === 0 &&
+          character === "\\" =>
+        index := if index.contents + 2 < length { index.contents + 2 } else { length }
+      | _ if
+          isShell &&
+          shellParameterDepth.contents > 0 &&
+          shellParameterCommandDepth.contents === 0 &&
+          character === "`" =>
+        shellParameterBacktick := !shellParameterBacktick.contents
+        index := index.contents + 1
+      | _ if
+          isShell &&
+          shellParameterCommandDepth.contents === 0 &&
+          !shellParameterBacktick.contents &&
+          character === "$" &&
+          source->String.charAt(index.contents + 1) === "{" =>
         shellParameterDepth := shellParameterDepth.contents + 1
         index := index.contents + 2
-      | _ if isShell && shellParameterDepth.contents > 0 && character === "{" =>
+      | _ if
+          isShell &&
+          shellParameterCommandDepth.contents === 0 &&
+          !shellParameterBacktick.contents &&
+          shellParameterDepth.contents > 0 &&
+          character === "{" =>
         shellParameterDepth := shellParameterDepth.contents + 1
         index := index.contents + 1
-      | _ if isShell && shellParameterDepth.contents > 0 && character === "}" =>
+      | _ if
+          isShell &&
+          shellParameterCommandDepth.contents === 0 &&
+          !shellParameterBacktick.contents &&
+          shellParameterDepth.contents > 0 &&
+          character === "}" =>
         shellParameterDepth := shellParameterDepth.contents - 1
         index := index.contents + 1
       | Some(0) =>
@@ -772,7 +841,13 @@ module GeneratedName = {
         } else {
           let lineComment =
             (isHash &&
-            shellParameterDepth.contents === 0 &&
+            (shellParameterDepth.contents === 0 ||
+              shellParameterCommandDepth.contents > 0 ||
+              shellParameterBacktick.contents ||
+              switch shellQuotedContext {
+              | Some(context) => context !== 0
+              | None => false
+              }) &&
             character === "#" &&
             (!isShell || isShellCommentStart(index.contents))) ||
             isJavaScript &&
