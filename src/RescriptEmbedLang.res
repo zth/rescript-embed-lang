@@ -306,7 +306,7 @@ module GeneratedName = {
           cursor := cursor.contents - 1
         }
         let word = source->String.slice(~start=cursor.contents + 1, ~end=wordEnd)
-        ["return", "throw", "case", "delete", "void", "typeof", "yield", "await", "new"]
+        ["return", "throw", "case", "delete", "void", "typeof", "yield", "await", "new", "else", "do"]
         ->Array.includes(word)
       } else {
         false
@@ -413,11 +413,22 @@ module GeneratedName = {
         } else if blockComment {
           let start = index.contents + 2
           let end_ = ref(start)
-          while end_.contents < length && source->String.slice(~start=end_.contents, ~end=end_.contents + 2) !== "*/" {
-            end_ := end_.contents + 1
+          let depth = ref(1)
+          while end_.contents < length && depth.contents > 0 {
+            if source->String.slice(~start=end_.contents, ~end=end_.contents + 2) === "/*" {
+              depth := depth.contents + 1
+              end_ := end_.contents + 2
+            } else if source->String.slice(~start=end_.contents, ~end=end_.contents + 2) === "*/" {
+              depth := depth.contents - 1
+              if depth.contents > 0 {
+                end_ := end_.contents + 2
+              }
+            } else {
+              end_ := end_.contents + 1
+            }
           }
           namesInComment(source->String.slice(~start, ~end=end_.contents))->Array.forEach(name => names->Array.push(name))
-          index := if end_.contents < length {end_.contents + 2} else {end_.contents}
+          index := if depth.contents === 0 {end_.contents + 2} else {end_.contents}
         } else {
           index := index.contents + 1
         }

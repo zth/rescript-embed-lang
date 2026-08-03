@@ -443,7 +443,19 @@ let extract_name_directive source =
         in
         let start = word_start (end_ - 1) in
         List.mem (String.sub source start (end_ - start))
-          [ "return"; "throw"; "case"; "delete"; "void"; "typeof"; "yield"; "await"; "new" ]
+          [
+            "return";
+            "throw";
+            "case";
+            "delete";
+            "void";
+            "typeof";
+            "yield";
+            "await";
+            "new";
+            "else";
+            "do";
+          ]
     | Some _ -> false
   in
   let rec skip_regex_literal index ~escaped ~in_class =
@@ -485,9 +497,12 @@ let extract_name_directive source =
       line_end (index + 1)
     else index
   in
-  let rec block_end index =
-    if index >= length || starts_with_at source index "*/" then index
-    else block_end (index + 1)
+  let rec block_end index depth =
+    if index >= length then (index, depth)
+    else if starts_with_at source index "/*" then block_end (index + 2) (depth + 1)
+    else if starts_with_at source index "*/" then
+      if depth = 1 then (index, 0) else block_end (index + 2) (depth - 1)
+    else block_end (index + 1) depth
   in
   let add_comment start end_ names =
     List.rev_append (names_in_comment (String.sub source start (end_ - start))) names
@@ -531,8 +546,8 @@ let extract_name_directive source =
           let end_ = line_end (index + 2) in
           loop end_ (add_comment (index + 2) end_ names)
       | '/' when starts_with_at source index "/*" ->
-          let end_ = block_end (index + 2) in
-          let next = if end_ < length then end_ + 2 else end_ in
+          let end_, depth = block_end (index + 2) 1 in
+          let next = if depth = 0 then end_ + 2 else end_ in
           loop next (add_comment (index + 2) end_ names)
       | _ -> loop (index + 1) names
   in

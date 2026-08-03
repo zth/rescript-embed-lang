@@ -21,6 +21,7 @@ slash name directive	nameDirective						// @name jsThing\nconst value = 1	name	j
 CR-only name directive	nameDirective						// @name carriageName\rconst value = 1	name	carriageName
 dash name directive	nameDirective						-- @name sqlThing\nselect 1	name	sqlThing
 block name directive	nameDirective						/* docs\n * @name blockThing\n */\nselect 1	name	blockThing
+nested block name directive	nameDirective						/* outer /* nested */ @name nestedThing */ SELECT 1	name	nestedThing
 name directive ignores strings	nameDirective						const fake = \"// @name fake\";\n// @name realThing\nconst value = 1	name	realThing
 name directive ignores dollar quote	nameDirective						SELECT $$-- @name fake$$;\n-- @name realDollar\nSELECT 1	name	realDollar
 name directive ignores tagged dollar quote	nameDirective						SELECT $body$# @name fake$body$;\n-- @name realTagged\nSELECT 1	name	realTagged
@@ -35,6 +36,7 @@ JavaScript regex literal	nameDirective						const value = /# @name fake/;\n// @n
 JavaScript regex character class	nameDirective						const value = /[\\/#] @name fake/;\n// @name realRegexClass	name	realRegexClass
 JavaScript regex after return	nameDirective						function get() { return /# @name fake/ }\n// @name realReturnRegex	name	realReturnRegex
 JavaScript regex after condition	nameDirective						if (ready) /# @name fake/.test(value); // @name realConditionalRegex	name	realConditionalRegex
+JavaScript regex after else	nameDirective						if (ready) work(); else /# @name fake/.test(value);\n// @name realElseRegex	name	realElseRegex
 PostgreSQL hash operator	nameDirective						SELECT doc #>> '{path}', '@name fake'; -- @name realHashOperator	name	realHashOperator
 missing name directive	nameDirective						select 1	error	no valid @name
 multiple name directives	nameDirective						# @name One\n-- @name Two\nselect 1	error	multiple @name
