@@ -247,7 +247,9 @@ Generation is staged before commit, detects case-insensitive and user-module col
 
 ### SQL
 
-Embedding for Postgres SQL via [pgtyped-rescript](https://github.com/zth/pgtyped-rescript).
+Embedding for Postgres SQL via [pgtyped-rescript](https://github.com/zth/pgtyped-rescript)
+or another generator using the same companion-module convention. The PPX does
+not depend on the SQL generator.
 
 ```rescript
 // Movies.res
@@ -263,6 +265,26 @@ Is transformed into:
 // Movies.res
 let findMovieQuery = Movies__sql.FindMovieQuery.one
 ```
+
+SQL fragment modules use the same prefix extension syntax:
+
+```rescript
+// SeasonSql.res
+module Active = %sql.fragment(`SELECT season FROM seasons WHERE is_active`)
+
+module Stats = {
+  module Totals = %sql.fragment(`SELECT count(*) AS total FROM games`)
+}
+```
+
+The PPX replaces these module expressions with
+`SeasonSql__fragments__sql.Active` and
+`SeasonSql__fragments__sql.Stats.Totals`. Your SQL generator supplies that
+companion module, preserving the authored module hierarchy and exposing its
+generated types (for example, `Active.result`). Only a single static SQL string
+literal is accepted. The PPX does not expand or execute SQL and does not generate
+the companion modules itself. Existing `%sql`, `%sql.one`, `%sql.many`,
+`%sql.expectOne`, `%sql.execute`, and `%sql` module bindings retain their behavior.
 
 ## Adding more language embeds
 

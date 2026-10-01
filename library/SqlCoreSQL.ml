@@ -126,3 +126,69 @@ let sqlModuleExtension =
           ~targetFn:None ~transformMode:ModuleBinding
       in
       Ast_helper.Mod.ident ~loc {txt = lid; loc})
+
+(* A fragment module is backed by the types generated for its source file. Keep
+   the nested module path so local references match the extracted fragment key. *)
+let fragment_module_path ~file_name names =
+  let source_module =
+    Filename.basename file_name
+    |> Filename.remove_extension |> capitalizeFirstLetter
+  in
+  Longident.parse
+    (String.concat "." ((source_module ^ "__fragments__sql") :: names))
+
+class fragment_mapper =
+  object (self)
+    inherit Ast_traverse.map as super
+
+    val mutable module_path = []
+
+    method! structure_item item =
+      match item.Parsetree.pstr_desc with
+      | Pstr_module
+          ({
+             pmb_name = {txt = Some name; _};
+             pmb_expr =
+               {
+                 pmod_desc =
+                   Pmod_extension ({txt = "sql.fragment"; loc}, payload);
+                 _;
+               } as pmb_expr;
+           } as binding) ->
+        (match payload with
+        | PStr
+            [
+              {
+                pstr_desc =
+                  Pstr_eval ({pexp_desc = Pexp_constant (Pconst_string _); _}, _);
+                _;
+              };
+            ] ->
+          ()
+        | _ ->
+          Location.raise_errorf ~loc
+            "sql.fragment requires a single SQL string literal");
+        let names = List.rev (name :: module_path) in
+        let target =
+          fragment_module_path ~file_name:loc.loc_start.pos_fname names
+        in
+        {
+          item with
+          pstr_desc =
+            Pstr_module
+              {
+                binding with
+                pmb_expr =
+                  {pmb_expr with pmod_desc = Pmod_ident {txt = target; loc}};
+              };
+        }
+      | Pstr_module {pmb_name = {txt = Some name; _}; _} ->
+        module_path <- name :: module_path;
+        let item = super#structure_item item in
+        module_path <- List.tl module_path;
+        item
+      | _ -> super#structure_item item
+  end
+
+let fragment_structure_mapper structure =
+  (new fragment_mapper)#structure structure
