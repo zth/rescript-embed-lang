@@ -134,6 +134,9 @@ jobs:
       - name: Test named generation API
         working-directory: test
         run: npm run test:named
+      - name: Test SQL fragment modules
+        working-directory: test
+        run: node src/SqlFragmentTest.mjs
       - name: Upload PPX artifact ${{ matrix.platform }}
         uses: actions/upload-artifact@v4
         with:

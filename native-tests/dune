@@ -1,6 +1,12 @@
 (test
  (name NamedGenerationTest)
+ (modules NamedGenerationTest)
  (libraries rescript-embed-lang)
  (deps ../fixtures/named-generation.tsv)
  (action
   (run %{test} %{dep:../fixtures/named-generation.tsv})))
+
+(test
+ (name SqlFragmentTest)
+ (modules SqlFragmentTest)
+ (libraries rescript-embed-lang ppxlib))
